@@ -6,38 +6,41 @@
 <title>weavN</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=swap">
 <style>
-  /* Themes. Default is LIGHT (:root). Explicit themes set via data-theme on <html>;
-     palettes adapted from open-source schemes (Night-Blue, Nord, Solarized by Ethan
-     Schoonover, Catppuccin). Sidebar can be tinted independently via --rail-fg/-muted. */
+  /* Themes. Default is PAPER (:root) — a clean, professional document light theme.
+     Explicit themes set via data-theme on <html>. Sidebar can be tinted
+     independently via --rail-fg/--rail-muted. */
   :root{
     --font:"IBM Plex Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
     --side-w:300px;--thread-w:380px;
-    /* weavN Light (default) */
-    --bg:#eef1f6;--surface:#fff;--rail:#f4f1ec;--border:#e2e6ec;--fg:#0F172A;
-    --muted:#6a7686;--faint:#93a0b2;--accent:#4F46E5;--accent-weak:rgba(79,70,229,.12);
-    --thread:#06B6D4;--ok:#1f9d6b;--rail-fg:var(--fg);--rail-muted:var(--muted);
+    /* Paper (default) — warm off-white, charcoal ink, restrained indigo */
+    --bg:#f7f6f3;--surface:#ffffff;--rail:#f1efea;--border:#e6e3dc;--fg:#282623;
+    --muted:#6a655d;--faint:#a39d93;--accent:#4b47c4;--accent-weak:rgba(75,71,196,.09);
+    --thread:#0e7490;--ok:#15803d;--rail-fg:var(--fg);--rail-muted:var(--muted);
     color-scheme:light;
   }
+  :root[data-theme="light"]{ /* weavN Light — cool neutral */
+    --bg:#eef1f6;--surface:#fff;--rail:#f4f6f9;--border:#e2e6ec;--fg:#0F172A;
+    --muted:#6a7686;--faint:#93a0b2;--accent:#4F46E5;--accent-weak:rgba(79,70,229,.1);--thread:#0891b2;--ok:#1f9d6b;color-scheme:light;}
+  :root[data-theme="github"]{ /* GitHub Light — crisp, high-contrast */
+    --bg:#ffffff;--surface:#ffffff;--rail:#f6f8fa;--border:#d0d7de;--fg:#1f2328;
+    --muted:#59636e;--faint:#8c959f;--accent:#0969da;--accent-weak:rgba(9,105,218,.09);--thread:#1a7f37;--ok:#1a7f37;color-scheme:light;}
   :root[data-theme="dark"]{ /* weavN Night-Blue */
     --bg:#0B1120;--surface:#131d33;--rail:#0F172A;--border:#28323f;--fg:#E7ECF5;
     --muted:#93a0b2;--faint:#6b7889;--accent:#8b84ff;--accent-weak:rgba(139,132,255,.18);--thread:#22c6e0;--ok:#34c089;color-scheme:dark;}
+  :root[data-theme="graphite"]{ /* Graphite — neutral professional dark */
+    --bg:#1b1b1d;--surface:#242427;--rail:#161618;--border:#343438;--fg:#e9e9eb;
+    --muted:#9d9da6;--faint:#6b6b74;--accent:#7c86ff;--accent-weak:rgba(124,134,255,.16);--thread:#38bdc9;--ok:#4ade80;color-scheme:dark;}
   :root[data-theme="nord"]{ /* Nord (arcticicestudio) */
     --bg:#2E3440;--surface:#3B4252;--rail:#2b303b;--border:#434C5E;--fg:#ECEFF4;
     --muted:#AEB8CC;--faint:#6b7793;--accent:#88C0D0;--accent-weak:rgba(136,192,208,.18);--thread:#81A1C1;--ok:#A3BE8C;color-scheme:dark;}
   :root[data-theme="sol-dark"]{ /* Solarized Dark */
     --bg:#002b36;--surface:#073642;--rail:#042f3b;--border:#0d4b5a;--fg:#93a1a1;
     --muted:#839496;--faint:#586e75;--accent:#268bd2;--accent-weak:rgba(38,139,210,.18);--thread:#2aa198;--ok:#859900;color-scheme:dark;}
-  :root[data-theme="sol-light"]{ /* Solarized Light */
-    --bg:#f3eeda;--surface:#fdf6e3;--rail:#eee8d5;--border:#e3dcc3;--fg:#586e75;
-    --muted:#657b83;--faint:#93a1a1;--accent:#268bd2;--accent-weak:rgba(38,139,210,.13);--thread:#2aa198;--ok:#859900;color-scheme:light;}
-  :root[data-theme="latte"]{ /* Catppuccin Latte (light) */
-    --bg:#eff1f5;--surface:#ffffff;--rail:#e6e9ef;--border:#ccd0da;--fg:#4c4f69;
-    --muted:#6c6f85;--faint:#9ca0b0;--accent:#8839ef;--accent-weak:rgba(136,57,239,.12);--thread:#209fb5;--ok:#40a02b;color-scheme:light;}
   :root[data-theme="aubergine"]{ /* Slack-style: light content, tinted sidebar */
     --bg:#f8f8fa;--surface:#ffffff;--rail:#3F0E40;--border:#e6e6ea;--fg:#1d1c1d;
-    --muted:#616061;--faint:#9a9a9c;--accent:#1164A3;--accent-weak:rgba(18,100,163,.12);--thread:#007a5a;--ok:#2eb67d;
+    --muted:#616061;--faint:#9a9a9c;--accent:#1164A3;--accent-weak:rgba(18,100,163,.1);--thread:#007a5a;--ok:#2eb67d;
     --rail-fg:#f4ecf4;--rail-muted:#cbb6cc;color-scheme:light;}
-  /* "Auto" follows the OS. */
+  /* "Auto" follows the OS (dark side only; light falls through to Paper). */
   @media(prefers-color-scheme:dark){:root[data-theme="auto"]{
     --bg:#0B1120;--surface:#131d33;--rail:#0F172A;--border:#28323f;--fg:#E7ECF5;
     --muted:#93a0b2;--faint:#6b7889;--accent:#8b84ff;--accent-weak:rgba(139,132,255,.18);--thread:#22c6e0;--ok:#34c089;color-scheme:dark;}}
@@ -1000,16 +1003,17 @@ $('#density').addEventListener('click',()=>{
 
 // --- Themes (default light) — palettes from open-source schemes; see <style> ----
 const THEMES=[
+  {id:'paper',name:'Paper'},
   {id:'light',name:'weavN Light'},
+  {id:'github',name:'GitHub Light'},
   {id:'dark',name:'weavN Night-Blue'},
-  {id:'aubergine',name:'Aubergine (Slack-style)'},
-  {id:'latte',name:'Catppuccin Latte'},
+  {id:'graphite',name:'Graphite'},
   {id:'nord',name:'Nord'},
-  {id:'sol-light',name:'Solarized Light'},
   {id:'sol-dark',name:'Solarized Dark'},
+  {id:'aubergine',name:'Aubergine (Slack-style)'},
   {id:'auto',name:'Match system'},
 ];
-function getTheme(){ let t='light'; try{t=localStorage.getItem('weavn-theme')||'light';}catch(e){} return THEMES.some(x=>x.id===t)?t:'light'; }
+function getTheme(){ let t='paper'; try{t=localStorage.getItem('weavn-theme')||'paper';}catch(e){} return THEMES.some(x=>x.id===t)?t:'paper'; }
 function applyTheme(){ document.documentElement.setAttribute('data-theme',getTheme()); }
 function openThemeMenu(){
   document.querySelectorAll('.stmenu').forEach(m=>m.remove());
