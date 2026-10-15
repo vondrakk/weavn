@@ -102,6 +102,13 @@
   .chead-ctl{display:flex;align-items:center;gap:4px}
   #activitytoggle{border:1px solid var(--border);border-radius:999px;padding:1px 9px;font-size:10px;letter-spacing:.03em;color:var(--muted);background:var(--bg)}
   #activitytoggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .frow{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;cursor:pointer;color:var(--rail-fg);font-size:13px}
+  .frow:hover{background:var(--accent-weak)}
+  .frow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .frow .ar{color:var(--faint);font-size:11px;cursor:pointer;opacity:0}
+  .frow:hover .ar{opacity:1}
+  .frow .ar:hover{color:var(--accent)}
+  .streamcomposer{background:var(--surface)}
   .treebar{display:flex;align-items:center;gap:6px;padding:3px 12px 6px}
   .treebar select{flex:1;border:1px solid var(--border);border-radius:7px;padding:4px 7px;font:inherit;font-size:12px;background:var(--surface);color:var(--fg);cursor:pointer}
   /* hierarchy tree rows under a board */
@@ -499,12 +506,19 @@
       </div>
       <div class="feedview hidden" id="streamview">
         <div class="streamhead">
-          <div class="segpill" id="streamscope"><button data-s="you" class="on">For you</button><button data-s="all">Everything</button></div>
+          <div class="segpill" id="streamscope"><button data-s="you" class="on">For you</button><button data-s="following">Following</button><button data-s="all">Everything</button></div>
           <span class="fqwrap" style="flex:1"><span class="mi">search</span><input class="fq" id="streamq" placeholder="Filter the stream… (a channel is a saved filter)" autocomplete="off" spellcheck="false"></span>
           <select id="streamproj" title="Filter by board"><option value="">All boards</option></select>
+          <button id="streamsave" class="fgear" title="Save this view as a channel"><span class="mi">bookmark_add</span></button>
           <span class="fcount" id="streamcount"></span>
         </div>
         <div class="feedbody" id="streamfeed"><div class="feedempty"><span class="spin"></span>Loading…</div></div>
+        <div class="composer streamcomposer">
+          <form id="streamform">
+            <input id="streambody" placeholder="Pick a board (filter) to post…" autocomplete="off" disabled>
+            <button type="submit" disabled>Send</button>
+          </form>
+        </div>
       </div>
       <div class="hidden" id="updatesview">
         <div class="chbar">
@@ -1181,15 +1195,30 @@ async function loadStream(){
   sel.value=boards.includes(cur)?cur:''; STREAM_PROJ=sel.value;
   renderStreamFeed();
 }
+function savedFilters(){ return (LAYOUT&&LAYOUT.filters)||[]; }
+function filterMatch(it,f){
+  if(f.proj && it.channel.split(' / ')[0]!==f.proj) return false;
+  if(f.q){ const q=f.q.toLowerCase(); if(!((it.author+' '+it.channel+' '+it.issue_key+' '+it.snippet).toLowerCase().includes(q))) return false; }
+  return true;
+}
+// the board a new post would land in, given the current filter (null = no single home)
+function streamTarget(){ return STREAM_PROJ && STREAM_PROJ.indexOf(' / ')<0 ? STREAM_PROJ : null; }
+function syncStreamComposer(){
+  const t=streamTarget(), inp=$('#streambody'), btn=$('#streamform button');
+  if(t){ inp.disabled=false; btn.disabled=false; inp.placeholder=`Message ${projName(t)||t} — it becomes a JIRA issue`; }
+  else { inp.disabled=true; btn.disabled=true; inp.placeholder='Pick a board (filter) to post — or open an item to reply'; }
+}
 function renderStreamFeed(){
   const el=$('#streamfeed');
   let a=STREAM.slice();
   if(STREAM_SCOPE==='you') a=a.filter(streamInvolvesMe);
+  else if(STREAM_SCOPE==='following'){ const fs=savedFilters(); a=fs.length?a.filter(it=>fs.some(f=>filterMatch(it,f))):[]; }
   if(STREAM_PROJ) a=a.filter(it=>it.channel.split(' / ')[0]===STREAM_PROJ);
   const q=STREAM_Q.trim().toLowerCase();
   if(q) a=a.filter(it=>((it.author||'')+' '+(it.channel||'')+' '+(it.issue_key||'')+' '+(it.snippet||'')).toLowerCase().includes(q));
   $('#streamcount').textContent=a.length?`${a.length} item${a.length===1?'':'s'}`:'';
-  if(!a.length){ el.innerHTML=`<div class="feedempty">${STREAM.length?'Nothing matches this filter.':'No activity yet — post something or open a board to pull it in.'}</div>`; return; }
+  syncStreamComposer();
+  if(!a.length){ el.innerHTML=`<div class="feedempty">${STREAM_SCOPE==='following'&&!savedFilters().length?'Follow boards or save views to populate Following. Facet the stream and hit the bookmark to save it.':(STREAM.length?'Nothing matches this filter.':'No activity yet — post something or open a board to pull it in.')}</div>`; return; }
   el.innerHTML=a.map(it=>`<div class="fitem" data-issue="${esc(it.issue_key)}" data-ch="${esc(it.channel)}">
       <div class="fav">${esc(initials(it.author))}</div>
       <div class="fmain">
@@ -1202,6 +1231,31 @@ function renderStreamFeed(){
 $('#streamscope').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ STREAM_SCOPE=b.dataset.s; $('#streamscope').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); renderStreamFeed(); }));
 $('#streamq').addEventListener('input',e=>{ STREAM_Q=e.target.value; renderStreamFeed(); });
 $('#streamproj').addEventListener('change',e=>{ STREAM_PROJ=e.target.value; renderStreamFeed(); });
+// Save the current view as a channel (a named saved filter in the sidebar)
+$('#streamsave').addEventListener('click',()=>{
+  const dflt=projName(STREAM_PROJ)||STREAM_PROJ||(STREAM_Q?('"'+STREAM_Q+'"'):'My view');
+  const name=prompt('Name this view (it becomes a channel in the sidebar):',dflt); if(name===null)return;
+  if(!LAYOUT.filters) LAYOUT.filters=[];
+  LAYOUT.filters.push({id:'f'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:name.trim()||dflt,proj:STREAM_PROJ,q:STREAM_Q});
+  saveLayout(); renderSidebar();
+});
+// Apply a saved filter (from the sidebar) to the stream
+function applySavedFilter(f){
+  setView('stream');
+  STREAM_SCOPE='all'; STREAM_PROJ=f.proj||''; STREAM_Q=f.q||'';
+  $('#streamscope').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.s==='all'));
+  $('#streamq').value=STREAM_Q; const sp=$('#streamproj'); if([...sp.options].some(o=>o.value===STREAM_PROJ)) sp.value=STREAM_PROJ;
+  renderStreamFeed();
+}
+// Post into the stream's current target board (filter = channel for writing)
+$('#streamform').addEventListener('submit',async e=>{
+  e.preventDefault(); const t=streamTarget(); const body=$('#streambody').value.trim(); if(!t||!body)return;
+  const btn=e.target.querySelector('button'); btn.disabled=true;
+  const r=await api('/send',{method:'POST',body:JSON.stringify({channel:t,body,mentions:[]})});
+  btn.disabled=false;
+  if(!r.ok){alert('Post failed: '+await r.text());return;}
+  $('#streambody').value=''; loadStream();
+});
 // Jump from a workspace feed into a board's river, optionally opening a thread.
 async function jumpTo(channel,issue){
   if(!channel) return;
@@ -1479,6 +1533,12 @@ async function renderSidebar(){
     </div>`;};
   const assigned=new Set();
   let html='';
+  // 0) saved views (a channel is a filter) — saved stream filters, clickable
+  const filters=(LAYOUT.filters||[]);
+  if(filters.length){
+    html+='<div class="csec board" style="padding-top:2px">Views</div>'
+      +filters.map(f=>`<div class="frow" data-fid="${esc(f.id)}" title="${esc((f.proj?'#'+f.proj+' ':'')+(f.q||''))}"><span class="mi" style="font-size:14px;color:var(--rail-muted)">bolt</span><span class="cn">${esc(f.name)}</span><span class="ar" data-delfid="${esc(f.id)}" title="Remove view">remove</span></div>`).join('');
+  }
   // 1) the user's custom sections, in their order
   LAYOUT.sections.forEach(sec=>{
     const list=(sec.channels||[]).filter(ch=>chMap[ch]);
@@ -1508,6 +1568,10 @@ async function renderSidebar(){
   wireSidebar(cl);
 }
 function wireSidebar(cl){
+  cl.querySelectorAll('.frow').forEach(r=>r.addEventListener('click',e=>{
+    if(e.target.closest('.ar')){ const id=e.target.dataset.delfid; LAYOUT.filters=(LAYOUT.filters||[]).filter(f=>f.id!==id); saveLayout(); renderSidebar(); return; }
+    const f=(LAYOUT.filters||[]).find(x=>x.id===r.dataset.fid); if(f) applySavedFilter(f);
+  }));
   cl.querySelectorAll('.texp').forEach(x=>x.addEventListener('click',e=>{e.stopPropagation(); toggleBoard(x.closest('.crow'), x.dataset.ch);}));
   cl.querySelectorAll('.crow').forEach(r=>{
     r.addEventListener('click',e=>{ if(e.target.closest('.st')||e.target.closest('.ar')||e.target.closest('.texp'))return; const ch=r.dataset.ch; openChannel(ch,ch.indexOf(' / ')<0); });
