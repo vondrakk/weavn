@@ -79,7 +79,7 @@
   .tcompose form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .tcompose input#threadinput{flex:1;min-width:120px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;font:inherit;background:var(--bg);color:var(--fg);outline:none}
   .tcompose button[type=submit]{background:var(--accent);color:#fff;border:0;border-radius:9px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer}
-  .threadbtn{margin:6px 0 0 34px;border:1px solid var(--border);background:transparent;color:var(--thread);border-radius:8px;padding:3px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .threadbtn{margin:6px 0 0 0;border:1px solid var(--border);background:transparent;color:var(--thread);border-radius:8px;padding:3px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
   .threadbtn:hover{background:var(--accent-weak);color:var(--accent);border-color:var(--accent)}
   .chbar{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);align-items:center}
   .chbar input#channel{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 11px;font:inherit;background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:13px;outline:none}
@@ -92,16 +92,45 @@
   .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:7px}
   @keyframes spin{to{transform:rotate(360deg)}}
   .loadmsg{color:var(--muted)}
-  .stream{flex:1;overflow:auto;padding:10px 16px 16px;max-width:900px;width:100%;margin:0 auto}
-  /* Slack-style river: flat rows, no cards, hover reveals actions + a hover tint */
-  .convo{position:relative;border:0;border-radius:8px;padding:5px 12px 7px;margin:0;background:transparent}
-  .convo:hover{background:var(--accent-weak)}
-  .convo+.convo{margin-top:1px}
-  .ch{display:flex;align-items:center;gap:8px;margin-bottom:2px}
-  .av{width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:11px;flex:none}
-  .who2{font-weight:600}.time{color:var(--faint);font-size:12px}
+  .stream{flex:1;overflow:auto;padding:4px 0 18px;max-width:900px;width:100%;margin:0 auto}
+  /* Slack-style transcript: a 2-col grid (gutter | message). Consecutive messages
+     from the same author within a short window collapse under one header (.cont). */
+  .daydiv{display:flex;align-items:center;gap:12px;margin:16px 20px 8px;color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+  .daydiv::before,.daydiv::after{content:"";height:1px;background:var(--border);flex:1}
+  .eventline{display:flex;align-items:center;justify-content:center;gap:10px;margin:3px 20px;color:var(--faint);font-size:12px}
+  .eventline::before,.eventline::after{content:"";height:1px;background:var(--border);width:34px}
+  .msg{position:relative;display:grid;grid-template-columns:52px minmax(0,1fr);padding:4px 20px 3px 0;border-radius:0}
+  .msg:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+  .msg.cont{padding-top:1px;padding-bottom:1px}
+  .m-gut{grid-column:1;display:flex;justify-content:center;padding-top:3px}
+  .msg .av{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px;flex:none}
+  .msg.cont .av{display:none}
+  .m-ht{display:none;font-size:10px;color:var(--faint);padding-top:4px;font-variant-numeric:tabular-nums}
+  .msg.cont:hover .m-ht{display:block}
+  .m-main{grid-column:2;min-width:0}
+  .m-head{display:flex;align-items:baseline;gap:8px;margin-bottom:1px}
+  .m-who{font-weight:700}
+  .m-time{color:var(--faint);font-size:11px}
+  .lines{margin:0}.lines p{margin:0 0 3px;white-space:pre-wrap}
+  /* quiet JIRA decorations: a status dot + word (click to change) and a faint key */
+  .m-deco{display:flex;align-items:center;gap:12px;margin-top:2px;line-height:1.3}
+  .sdot{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;padding:0}
+  .sdot:hover{color:var(--fg)}
+  .sdot .dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+  .sdot.prog .dot{background:#e2b63c}.sdot.prog{color:#c8921a}
+  .sdot.done .dot{background:var(--ok)}.sdot.done{color:var(--ok)}
+  .m-key{font-family:var(--mono);font-size:10px;color:var(--faint);opacity:.55;text-decoration:none}
+  .msg:hover .m-key{opacity:1;color:var(--accent)}
+  .rx:empty{display:none}
+  .time{color:var(--faint);font-size:12px}
   .key{font-family:var(--mono);font-size:11px}
-  .lines{margin:0 0 0 34px}.lines p{margin:0 0 3px;white-space:pre-wrap}
+  /* thread-pane replies: author + faint timestamp per comment */
+  .msg.troot{padding:2px 0 10px;border-bottom:1px solid var(--border);margin-bottom:8px}
+  .msg.troot:hover{background:transparent}
+  .rep .rhead{display:flex;align-items:baseline;gap:7px;margin-bottom:1px}
+  .rep .ra{font-weight:600}
+  .rep .rtime{margin-left:auto;color:var(--faint);font-size:11px;white-space:nowrap}
+  .rep .rbody{white-space:pre-wrap}
   .reps{margin:8px 0 0 37px;border-left:2px solid var(--border);padding-left:12px;display:flex;flex-direction:column;gap:6px}
   .rep{font-size:13px}.rep .ra{font-weight:600}.fj{font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-weak);border-radius:4px;padding:1px 5px}
   .replybar{margin:8px 0 0 37px;display:flex;gap:6px}
@@ -199,16 +228,16 @@
   .unfurl .uft{font-weight:600;color:var(--fg);font-size:13px}
   .unfurl .ufd{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .unfurl .ufh{color:var(--faint);font-size:11px;margin-top:3px}
-  .atts{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0 34px}
+  .atts{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0 0}
   .att-img img{max-width:260px;max-height:200px;border-radius:8px;border:1px solid var(--border);display:block}
   .att-file{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--fg);text-decoration:none}
   .att-file:hover{border-color:var(--accent)}
   .att-file .asz{color:var(--faint);font-size:11px}
-  .acts2{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0 34px}
+  .acts2{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0 0}
   .actbtn{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:7px;padding:4px 12px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
   .actbtn:hover{border-color:var(--accent);color:var(--accent)}
   .actbtn:disabled{opacity:.5;cursor:default}
-  .rx{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 0 34px;align-items:center}
+  .rx{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 0 0;align-items:center}
   .rchip{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:1px 8px;font-size:12px;cursor:pointer;color:var(--muted);font-variant-numeric:tabular-nums}
   .rchip.mine{border-color:var(--accent);background:var(--accent-weak);color:var(--accent)}
   .rxadd{border:1px dashed var(--border);background:transparent;border-radius:12px;padding:1px 7px;font-size:12px;cursor:pointer;color:var(--faint);line-height:1.4}
@@ -242,14 +271,14 @@
   .stmenu .si:hover{background:var(--accent-weak)}
   .starthint{padding:7px 9px 2px;font-size:11px;color:var(--faint)}
   /* hover toolbar, Slack-style: floats at the row's top-right, hidden until hover */
-  .acts{position:absolute;top:-10px;right:10px;display:none;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px 4px;box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:2}
-  .convo:hover .acts{display:flex}
+  .acts{position:absolute;top:-12px;right:16px;display:none;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px 4px;box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:2}
+  .msg:hover .acts{display:flex}
   .acts .key{margin-left:4px;padding-left:6px;border-left:1px solid var(--border)}
   .iconbtn{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 4px;line-height:1;border-radius:6px}
   .iconbtn:hover{opacity:1;color:var(--accent);background:var(--accent-weak)}
   .pinbtn.on{opacity:1;filter:none}
-  .convo.pinned{border-left:2px solid var(--thread);padding-left:10px}
-  .convo.deleted .lines{opacity:.6}
+  .msg.pinned{box-shadow:inset 2px 0 0 var(--thread)}
+  .msg.deleted .lines{opacity:.6}
   .lines p.del{font-style:italic;color:var(--faint)}
   .rep .bc{font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--thread);border:1px solid var(--thread);border-radius:4px;padding:0 3px;margin-left:3px}
   .replybar .bcl{display:flex;align-items:center;gap:3px;color:var(--faint);font-size:12px;cursor:pointer;user-select:none}
@@ -389,7 +418,23 @@ let CURDM=null; // {id, members:[{id,display}]} when a DM is open
 async function api(path,opts={}){opts.credentials='same-origin';opts.headers=Object.assign({'content-type':'application/json'},opts.headers||{});return fetch(path,opts);}
 function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function initials(n){return (n||'?').split(/[\s@._]/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('');}
-function fmtTime(ts){try{return new Date(ts*1000).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(e){return '';}}
+function fmtTime(ts){try{
+  const d=new Date(ts*1000), opts={month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};
+  if(d.getFullYear()!==new Date().getFullYear()) opts.year='numeric'; // don't hide the year on old tickets
+  return d.toLocaleString([],opts);
+}catch(e){return '';}}
+function fmtClock(ts){try{return new Date(ts*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}catch(e){return '';}}
+function dayKey(ts){const d=new Date(ts*1000);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+function dayLabel(ts){
+  const d=new Date(ts*1000), now=new Date();
+  const mid=x=>{const z=new Date(x);z.setHours(0,0,0,0);return z.getTime();};
+  const today=mid(now), yest=today-86400000, ds=mid(d);
+  if(ds===today) return 'Today';
+  if(ds===yest) return 'Yesterday';
+  const opts={weekday:'long',month:'long',day:'numeric'};
+  if(d.getFullYear()!==now.getFullYear()) opts.year='numeric';
+  return d.toLocaleDateString([],opts);
+}
 function permalink(key){return SITE?`${SITE}/browse/${encodeURIComponent(key)}`:'#';}
 function fmtSize(n){n=+n||0;if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(0)+' KB';return (n/1048576).toFixed(1)+' MB';}
 // mrkdwn inline marks on ALREADY-ESCAPED text → HTML
@@ -619,11 +664,13 @@ function saveDraft(){try{localStorage.setItem('weavn-draft:'+CURCH,$('#body').va
 function restoreDraft(){try{$('#body').value=localStorage.getItem('weavn-draft:'+$('#channel').value.trim())||'';}catch(e){$('#body').value='';}}
 
 let THREADS=[], LOADEDCH='', CURTHREAD=null, STATUS_TOUCHED=false;
-// Default view is "In progress": statuses being actively worked — anything that
-// isn't a backlog/to-do or a done/closed terminal. '__active' is that category.
-const ST_DONE=/^(done|closed|resolved|complete|completed|cancell?ed|won'?t ?do|archived|released)$/i;
-const ST_TODO=/^(to ?do|open|backlog|new|triage|selected for development|to be done)$/i;
-function isActiveStatus(s){ s=(s||'').trim(); return !!s && !ST_DONE.test(s) && !ST_TODO.test(s); }
+// Classify a JIRA status into done / todo / active. Keyword-based (status NAMES
+// vary per project), so "Won't Fix", "Duplicate", "Released" etc. count as done.
+// Default view is "In progress" = the 'active' category.
+const ST_DONE=/\b(done|closed|close|resolved|complete|completed|cancel|canceled|cancelled|won'?t\s*(do|fix)|will\s*not\s*fix|wontfix|decline|declined|duplicate|invalid|reject|rejected|abandoned|archived|released|shipped|fixed|obsolete)\b/i;
+const ST_TODO=/\b(to\s*do|todo|open|backlog|new|triage|selected\s+for\s+development|to\s+be\s+done|planned|ready|icebox)\b/i;
+function statusCat(s){ s=(s||'').toLowerCase().trim(); if(!s) return 'none'; if(ST_DONE.test(s)) return 'done'; if(ST_TODO.test(s)) return 'todo'; return 'active'; }
+function isActiveStatus(s){ return statusCat(s)==='active'; }
 let FILTER={q:'',status:'__active',sort:'recent'};
 // Apply the board's filter + sort to THREADS. Default is Slack's river: oldest at
 // the top, most-recent activity at the bottom.
@@ -651,28 +698,49 @@ function syncStatusFilter(){
   else { want=hasActive?'__active':''; } // default view: in progress (fall back to All if none)
   sel.value=want; FILTER.status=want;
 }
-// Render the (filtered, sorted) river into #stream and wire per-message actions.
+// Render the (filtered, sorted) river as a Slack-style grouped transcript and wire
+// per-message actions. Consecutive messages from one author within GROUP seconds
+// collapse under a single header; day changes get a divider.
+const GROUP_SECS=5*60;
 function renderStream(){
   const stream=$('#stream');
   const list=filteredSorted();
   $('#fcount').textContent=THREADS.length?(list.length===THREADS.length?`${THREADS.length} message${THREADS.length===1?'':'s'}`:`${list.length} of ${THREADS.length}`):'';
   if(!list.length){stream.innerHTML=`<div class="empty">${THREADS.length?'No messages match your filter.':'No conversations yet — send one below.'}</div>`;return;}
-  stream.innerHTML=list.map(t=>{const k=esc(t.issue_key);return `
-    <article class="convo${t.pinned?' pinned':''}${t.deleted?' deleted':''}">
-      <div class="ch"><div class="av">${esc(initials(t.author))}</div><span class="who2">${esc(t.author)}</span><span class="time">${esc(fmtTime(t.ts))}</span><button class="statusbtn ${statusClass(t.status)}" data-issue="${k}" title="Change status">${esc(t.status||'—')}</button>
+  let out='', pAuthor=null, pTs=0, pDay=null;
+  for(const t of list){
+    const k=esc(t.issue_key);
+    const day=dayKey(t.ts), newDay=(day!==pDay);
+    if(newDay) out+=`<div class="daydiv"><span>${esc(dayLabel(t.ts))}</span></div>`;
+    const grouped=!newDay && !t.pinned && t.author===pAuthor && (t.ts-pTs)>=0 && (t.ts-pTs)<GROUP_SECS;
+    const gut=grouped?`<span class="m-ht">${esc(fmtClock(t.ts))}</span>`:`<div class="av">${esc(initials(t.author))}</div>`;
+    const head=grouped?'':`<div class="m-head"><span class="m-who">${esc(t.author)}</span><span class="m-time">${esc(fmtClock(t.ts))}</span></div>`;
+    const deco=`<div class="m-deco">`
+      +(t.status?`<button class="sdot ${statusClass(t.status)}" data-issue="${k}" title="Status: ${esc(t.status)} — click to change"><span class="dot"></span>${esc(t.status)}</button>`:'')
+      +`<a class="m-key" href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></div>`;
+    out+=`<article class="msg${grouped?' cont':''}${t.pinned?' pinned':''}${t.deleted?' deleted':''}">
+      <div class="m-gut">${gut}</div>
+      <div class="m-main">
+        ${head}
+        <div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div>
+        ${deco}
+        ${(t.attachments&&t.attachments.length)?`<div class="atts">${t.attachments.map(a=>a.is_image?`<a class="att-img" href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.filename)}" loading="lazy"></a>`:`<a class="att-file" href="${esc(a.url)}" target="_blank" rel="noopener">📄 ${esc(a.filename)} <span class="asz">${fmtSize(a.size)}</span></a>`).join('')}</div>`:''}
+        ${(t.actions&&t.actions.length)?`<div class="acts2">${t.actions.map(a=>`<button class="actbtn" data-issue="${k}" data-idx="${a.idx}">${esc(a.label)}</button>`).join('')}</div>`:''}
+        <div class="rx" data-issue="${k}">${(t.reactions||[]).map(x=>`<button class="rchip${x.mine?' mine':''}" data-code="${esc(x.shortcode)}" data-on="${x.mine?1:0}">${esc(x.shortcode)} ${x.count}</button>`).join('')}</div>
+        ${t.replies.length?`<button class="threadbtn" data-issue="${k}"><span class="mi">forum</span> ${t.replies.length} repl${t.replies.length===1?'y':'ies'}</button>`:''}
         <span class="acts">
+          <button class="iconbtn rxbtn" data-issue="${k}" title="React"><span class="mi">add_reaction</span></button>
+          <button class="iconbtn replybtn" data-issue="${k}" title="Reply in thread"><span class="mi">forum</span></button>
           <button class="iconbtn pinbtn${t.pinned?' on':''}" data-issue="${k}" data-on="${t.pinned?1:0}" title="${t.pinned?'Unpin':'Pin for the channel'}"><span class="mi${t.pinned?' filled':''}">push_pin</span></button>
           <button class="savebtn${SAVED.has(t.issue_key)?' on':''}" data-issue="${k}" title="Save"><span class="mi${SAVED.has(t.issue_key)?' filled':''}">bookmark</span></button>
           <button class="iconbtn morebtn" data-issue="${k}" data-raw="${encodeURIComponent(t.lines.join('\n'))}" title="More actions"><span class="mi">more_horiz</span></button>
-          <span class="key"><a href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></span>
-        </span></div>
-      <div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div>
-      ${(t.attachments&&t.attachments.length)?`<div class="atts">${t.attachments.map(a=>a.is_image?`<a class="att-img" href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.filename)}" loading="lazy"></a>`:`<a class="att-file" href="${esc(a.url)}" target="_blank" rel="noopener">📄 ${esc(a.filename)} <span class="asz">${fmtSize(a.size)}</span></a>`).join('')}</div>`:''}
-      ${(t.actions&&t.actions.length)?`<div class="acts2">${t.actions.map(a=>`<button class="actbtn" data-issue="${k}" data-idx="${a.idx}">${esc(a.label)}</button>`).join('')}</div>`:''}
-      <div class="rx" data-issue="${k}">${(t.reactions||[]).map(x=>`<button class="rchip${x.mine?' mine':''}" data-code="${esc(x.shortcode)}" data-on="${x.mine?1:0}">${esc(x.shortcode)} ${x.count}</button>`).join('')}<button class="rxadd" title="Add reaction"><span class="mi">add</span></button></div>
-      <button class="threadbtn" data-issue="${k}"><span class="mi">forum</span> ${t.replies.length?`${t.replies.length} repl${t.replies.length===1?'y':'ies'}`:'Reply in thread'}</button>
-    </article>`;}).join('');
-  stream.querySelectorAll('.threadbtn').forEach(b=>b.addEventListener('click',()=>openThread(b.dataset.issue)));
+        </span>
+      </div>
+    </article>`;
+    pAuthor=t.author; pTs=t.ts; pDay=day;
+  }
+  stream.innerHTML=out;
+  stream.querySelectorAll('.threadbtn,.replybtn').forEach(b=>b.addEventListener('click',()=>openThread(b.dataset.issue)));
   stream.querySelectorAll('.savebtn').forEach(b=>b.addEventListener('click',async()=>{
     const k=b.dataset.issue, on=SAVED.has(k);
     await api('/save',{method:'POST',body:JSON.stringify({issue:k,on:!on})});
@@ -684,13 +752,13 @@ function renderStream(){
     await api('/pin',{method:'POST',body:JSON.stringify({channel:CURCH,issue:b.dataset.issue,on:!on})});
     loadChannel();
   }));
-  stream.querySelectorAll('.statusbtn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openStatusMenu(b,b.dataset.issue);}));
+  stream.querySelectorAll('.sdot').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openStatusMenu(b,b.dataset.issue);}));
   stream.querySelectorAll('.rchip').forEach(b=>b.addEventListener('click',async()=>{
     const issue=b.closest('.rx').dataset.issue, on=b.dataset.on==='1';
     await api('/react',{method:'POST',body:JSON.stringify({issue,shortcode:b.dataset.code,on:!on})});
     loadChannel();
   }));
-  stream.querySelectorAll('.rxadd').forEach(b=>b.addEventListener('click',()=>openRxPal(b.closest('.rx'))));
+  stream.querySelectorAll('.rxbtn').forEach(b=>b.addEventListener('click',()=>openRxPal(b.closest('.m-main').querySelector('.rx'))));
   stream.querySelectorAll('.morebtn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openActionsMenu(b);}));
   stream.querySelectorAll('.actbtn').forEach(b=>b.addEventListener('click',async()=>{
     b.disabled=true;
@@ -795,9 +863,14 @@ function openThread(key){
 function closeThread(){ CURTHREAD=null; $('#threadpane').classList.add('hidden'); $('.main').classList.remove('tp'); }
 function renderThread(t){
   const k=esc(t.issue_key);
-  const root=`<div class="troot"><div class="ch"><div class="av">${esc(initials(t.author))}</div><span class="who2">${esc(t.author)}</span><span class="time">${esc(fmtTime(t.ts))}</span><span class="key"><a href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></span></div><div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div></div>`;
+  const root=`<article class="msg troot">
+    <div class="m-gut"><div class="av">${esc(initials(t.author))}</div></div>
+    <div class="m-main">
+      <div class="m-head"><span class="m-who">${esc(t.author)}</span><span class="m-time">${esc(fmtTime(t.ts))}</span><a class="m-key" href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></div>
+      <div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div>
+    </div></article>`;
   const reps=(t.replies||[]).length
-    ? t.replies.map(x=>`<div class="rep"><span class="ra">${esc(x.author)}</span>${x.from_jira?' <span class="fj">FROM JIRA</span>':''}${x.broadcast?' <span class="bc">↗ CHANNEL</span>':''}: ${mdInline(esc(x.body))}</div>`).join('')
+    ? t.replies.map(x=>`<div class="rep"><div class="rhead"><span class="ra">${esc(x.author)}</span>${x.from_jira?'<span class="fj">FROM JIRA</span>':''}${x.broadcast?'<span class="bc">↗ CHANNEL</span>':''}<span class="rtime">${esc(fmtTime(x.ts))}</span></div><div class="rbody">${mdInline(esc(x.body))}</div></div>`).join('')
     : '<div class="pmuted">No replies yet — start the thread below.</div>';
   const body=$('#threadbody'); const sc=body.scrollTop, atBottom=body.scrollHeight-sc-body.clientHeight<48;
   body.innerHTML=root+reps;
@@ -825,7 +898,7 @@ $('#activitytoggle').addEventListener('click',()=>{
 // auto-preview the first link in each conversation (cached per URL)
 let UNFURL={};
 function unfurlThreads(){
-  document.querySelectorAll('.convo').forEach(async art=>{
+  document.querySelectorAll('.msg').forEach(async art=>{
     if(art.querySelector('.unfurl'))return;
     const a=art.querySelector('.lines a[href^="http"]'); if(!a)return;
     const url=a.href;
@@ -1161,7 +1234,7 @@ $('#body').addEventListener('keydown',e=>{
 });
 
 // JIRA status chip + workflow transitions
-function statusClass(s){s=(s||'').toLowerCase();if(/done|closed|resolved|complete/.test(s))return'done';if(/progress|review|doing|started|dev/.test(s))return'prog';return'todo';}
+function statusClass(s){const c=statusCat(s);return c==='done'?'done':(c==='active'?'prog':'todo');}
 async function openStatusMenu(btn,issue){
   document.querySelectorAll('.stmenu').forEach(m=>m.remove());
   const r=await api('/transitions?issue='+encodeURIComponent(issue));

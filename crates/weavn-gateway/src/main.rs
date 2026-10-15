@@ -825,6 +825,7 @@ struct ReplyResp {
     body: String,
     from_jira: bool,
     broadcast: bool,
+    ts: i64,
 }
 
 #[derive(Serialize)]
@@ -1083,7 +1084,7 @@ async fn read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ReadQ
                 }
                 t.lines.push(row.body);
             }
-            Some(_) => t.replies.push(ReplyResp { author: row.author, body: row.body, from_jira: row.from_jira, broadcast: row.broadcast }),
+            Some(_) => t.replies.push(ReplyResp { author: row.author, body: row.body, from_jira: row.from_jira, broadcast: row.broadcast, ts: row.created_at }),
         }
     }
     // Attach aggregated reactions to each conversation.
