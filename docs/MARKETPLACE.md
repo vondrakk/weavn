@@ -95,6 +95,36 @@ can't reach another tenant's site — the same invariant the current per-site-to
 enforces. (Resource-level grant scopes consent to selected sites instead; see the
 decision below.)
 
+### Admin approval — not required by default, but gated by org policy
+
+A distributable 3LO app is **not installed into a site** like a Connect/Forge app.
+It is authorized **per user**: each person hits the consent screen and grants it
+themselves, and the app can only ever do what _that user_ can do (consent ≤ the
+user's own JIRA permissions — no privilege elevation). So **by default no Jira admin
+is involved** — any user self-connects.
+
+The exception is the customer org's **Connected apps / app-access policy**. An org or
+site admin can enable **"Block user apps"** (Atlassian Admin → Connected apps), and
+orgs with **Atlassian Guard** can add data-security policies on top. When that's on,
+users **cannot** self-consent — they get:
+
+> _"Your site admin must authorize this app for the site `<instance>.atlassian.net`
+> before the app can access your account."_
+
+and a **site/org admin must authorize weaveN first**. This is common in
+security-conscious enterprises (e.g. a locked-down `domaintools.atlassian.net` would
+likely need an admin there to allow the app before anyone can connect). A site **you
+administer yourself** has no such blocker.
+
+**What the gateway's consent UX must do:** detect the admin-authorization error on the
+callback (the authorize request comes back denied / the token exchange fails with this
+condition) and, instead of a generic failure, show onboarding guidance — _"your
+Atlassian admin needs to approve weaveN for this site"_ — with a link to the app's
+authorization URL an admin can approve, and ideally a way to notify/forward to an
+admin. Treat admin-gated orgs as a **first-class onboarding path**, not an error.
+Getting the **Marketplace listing approved** materially helps here: admins are far
+more willing to allowlist an Atlassian-reviewed app than an unreviewed one.
+
 ## The OAuth 2.0 (3LO) app — developer-console setup
 
 This is **not** a shell script: the app is created in Atlassian's browser developer
@@ -205,7 +235,9 @@ ecosystem.atlassian.net; incident reporting via ECOHELP). Then:
 
 - The 3LO app itself (developer console) — **you** create it (checklist above).
 - Gateway OAuth flow: authorize/callback routes, token store + rotation, `cloudid`
-  routing through `api.atlassian.com` — the implementing session owns this.
+  routing through `api.atlassian.com`, and the **admin-approval onboarding path**
+  (detect "site admin must authorize" and guide, don't just error) — the implementing
+  session owns this.
 - Marketplace Partner account + listing assets (logo, screenshots, demo video, EULA,
   privacy/security copy).
 - `scripts/oauth.sh` health-check (deferred until a Client ID exists).
