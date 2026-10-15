@@ -112,9 +112,17 @@ and reinstalled, so it's an outward-facing action you take yourself. Ordered che
 3. **Permissions** → **Add** the **Jira API** → **Configure** → add the granular
    scopes weaveN actually uses (candidate set below), plus `offline_access` for
    refresh tokens. Nothing more — least privilege is a review criterion.
-4. **Settings** → copy the **Client ID** and **Client secret** into the gateway's
-   secret store (`scripts/*.env` locally; the k8s `weavn-gateway-secret` in prod).
-   Never commit the secret.
+4. **Settings** → **Client ID** and **Client secret**. These are already issued and
+   stored locally in **`~/projects/innovai8/.conf/weavn-gateway-secret`** (dotenv,
+   mode 0600, outside the repo — never committed) as:
+   - `WEAVN_CLIENT_ID` — the 3LO app's Client ID
+   - `WEAVN_SECRET` — the 3LO app's Client secret
+
+   In prod the same pair lives in the in-cluster k8s Secret **`weavn-gateway-secret`**
+   (same name, different home). **Naming gotcha for the gateway wiring:** these are the
+   **Jira 3LO** app creds and are distinct from the Okta person-layer OIDC vars
+   (`WEAVN_OIDC_CLIENT_ID` / `WEAVN_OIDC_CLIENT_SECRET`) in `auth.rs` — don't conflate
+   the two credential sets.
 5. **Distribution** → toggle sharing **on**. 3LO apps are **private by default**
    (only you can install) until this is flipped.
 6. Verify end-to-end before any listing: run the authorize → callback → token →
@@ -126,7 +134,11 @@ and reinstalled, so it's an outward-facing action you take yourself. Ordered che
 > Follow-up tooling: once the app exists, a `scripts/oauth.sh` (no-arg: exchange the
 > stored refresh token, hit `accessible-resources`, print the sites read back; a flag
 > to run the full authorize round-trip) fits the repo's script convention and gives a
-> read-only health check. Deferred until there's a Client ID to test against.
+> read-only health check. The Client ID/secret now exist
+> (`~/projects/innovai8/.conf/weavn-gateway-secret`), so the script is buildable — but
+> running it still needs a **refresh token from a real user-consent round-trip** (3LO
+> has no client-credentials grant), so it can't be exercised until the gateway's
+> authorize/callback flow exists.
 
 ### Candidate scopes (confirm exact granular names in the console)
 
