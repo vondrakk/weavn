@@ -123,6 +123,16 @@
   .m-key{font-family:var(--mono);font-size:10px;color:var(--faint);opacity:.55;text-decoration:none}
   .msg:hover .m-key{opacity:1;color:var(--accent)}
   .m-who{cursor:default}
+  .m-who-inline{display:none;font-weight:700}
+  /* Compact density (Slack's compact mode): no avatars, timestamp in the gutter,
+     the bold name inline with the first line of the message. */
+  #app.compact .msg{grid-template-columns:58px minmax(0,1fr);padding-top:2px;padding-bottom:2px}
+  #app.compact .msg .av{display:none}
+  #app.compact .m-gut{justify-content:flex-end;padding-right:10px;padding-top:3px}
+  #app.compact .m-ht{display:block}
+  #app.compact .m-head{display:none}
+  #app.compact .m-who-inline{display:inline;float:left;margin-right:7px}
+  #app.compact .m-deco,#app.compact .atts,#app.compact .acts2,#app.compact .rx,#app.compact .threadbtn{clear:both}
   /* issue-type chips + epic link (quiet JIRA decorations) */
   .tchip{font-size:9px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;border-radius:4px;padding:1px 5px;line-height:1.5}
   .t-epic{color:#8b5cf6;background:rgba(139,92,246,.15)}
@@ -386,6 +396,7 @@
             <option value="old">Oldest first</option>
             <option value="new">Newest first</option>
           </select>
+          <button id="density" class="fgear" title="Compact / cozy layout"><span class="mi">density_small</span></button>
           <button id="statuscfg" class="fgear" title="Categorize statuses (per workspace)"><span class="mi">tune</span></button>
           <span class="fcount" id="fcount"></span>
         </div>
@@ -522,7 +533,7 @@ async function showApp(sess){
   $('#who').textContent=MENAME;
   $('#meav').textContent=initials(MENAME);
   renderUsage(USAGE);
-  await loadSaved(); loadState(); await loadStatusMap();
+  await loadSaved(); loadState(); await loadStatusMap(); applyDensity();
   renderSidebar(); connectWS(); loadAvailability(); loadNotifications();
 }
 let NOTIFS={unread:0,items:[]};
@@ -742,8 +753,9 @@ function renderStream(){
     const day=dayKey(t.ts), newDay=(day!==pDay);
     if(newDay) out+=`<div class="daydiv"><span>${esc(dayLabel(t.ts))}</span></div>`;
     const grouped=!newDay && !t.pinned && t.author===pAuthor && (t.ts-pTs)>=0 && (t.ts-pTs)<GROUP_SECS;
-    const gut=grouped?`<span class="m-ht">${esc(fmtClock(t.ts))}</span>`:`<div class="av">${esc(initials(t.author))}</div>`;
+    const gut=`${grouped?'':`<div class="av">${esc(initials(t.author))}</div>`}<span class="m-ht">${esc(fmtClock(t.ts))}</span>`;
     const head=grouped?'':`<div class="m-head"><span class="m-who" style="color:${authorColor(t.author)}">${esc(t.author)}</span><span class="m-time">${esc(fmtClock(t.ts))}</span></div>`;
+    const inlineWho=grouped?'':`<span class="m-who-inline" style="color:${authorColor(t.author)}">${esc(t.author)}</span>`;
     const epic=t.parent?`<a class="m-epic" href="${esc(permalink(t.parent))}" target="_blank" rel="noopener" title="Epic ${esc(t.parent)}${t.parent_summary?' — '+esc(t.parent_summary):''}">↳ ${esc(t.parent)}${t.parent_summary?' '+esc(t.parent_summary):''}</a>`:'';
     const deco=`<div class="m-deco">`
       +typeChip(t.issue_type)
@@ -753,7 +765,7 @@ function renderStream(){
     out+=`<article class="msg${grouped?' cont':''}${t.pinned?' pinned':''}${t.deleted?' deleted':''}">
       <div class="m-gut">${gut}</div>
       <div class="m-main">
-        ${head}
+        ${head}${inlineWho}
         <div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div>
         ${deco}
         ${(t.attachments&&t.attachments.length)?`<div class="atts">${t.attachments.map(a=>a.is_image?`<a class="att-img" href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.filename)}" loading="lazy"></a>`:`<a class="att-file" href="${esc(a.url)}" target="_blank" rel="noopener">📄 ${esc(a.filename)} <span class="asz">${fmtSize(a.size)}</span></a>`).join('')}</div>`:''}
@@ -861,6 +873,18 @@ function openCatPanel(){
   setTimeout(()=>document.addEventListener('click',function off(e){ if(!panel.contains(e.target)&&!e.target.closest('#statuscfg')){panel.remove();document.removeEventListener('click',off);} }),0);
 }
 $('#statuscfg').addEventListener('click',openCatPanel);
+// Density: cozy (avatars, name on its own line) vs compact (no avatars, time gutter,
+// name inline). Per-viewer preference, remembered in localStorage.
+function applyDensity(){
+  let c=false; try{c=localStorage.getItem('weavn-density')==='compact';}catch(e){}
+  $('#app').classList.toggle('compact',c);
+  const b=$('#density')&&$('#density').querySelector('.mi'); if(b)b.textContent=c?'density_large':'density_small';
+}
+$('#density').addEventListener('click',()=>{
+  const c=$('#app').classList.toggle('compact');
+  try{localStorage.setItem('weavn-density',c?'compact':'cozy');}catch(e){}
+  const b=$('#density').querySelector('.mi'); b.textContent=c?'density_large':'density_small';
+});
 
 // --- views: Updates (the board river) | Threads | Activity (both workspace-wide) ---
 let VIEW='updates';
