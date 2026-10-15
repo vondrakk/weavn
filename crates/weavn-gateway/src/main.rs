@@ -255,6 +255,7 @@ async fn main() {
         .route("/read", get(read))
         .route("/threads", get(threads_feed))
         .route("/status-map", get(status_map_get).post(status_map_set))
+        .route("/sidebar", get(sidebar_get).post(sidebar_set))
         .route("/export", get(export))
         .route("/discover", get(discover))
         .route("/users", get(users))
@@ -1145,6 +1146,25 @@ fn one_line(body: &str, max: usize) -> String {
     } else {
         flat
     }
+}
+
+/// A user's personal sidebar layout (custom sections + channel ordering). Opaque
+/// JSON owned by the client; `null` until the user customizes it.
+async fn sidebar_get(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<serde_json::Value>, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    let raw = weavn_store::user_pref_get(&s.pool, &ws, &user, "sidebar").await.map_err(db_err)?;
+    let v = raw.and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok()).unwrap_or(serde_json::Value::Null);
+    Ok(Json(v))
+}
+
+async fn sidebar_set(State(s): State<Shared>, headers: HeaderMap, Json(body): Json<serde_json::Value>) -> Result<StatusCode, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    let txt = body.to_string();
+    if txt.len() > 100_000 {
+        return Err((StatusCode::BAD_REQUEST, "sidebar layout too large".to_string()));
+    }
+    weavn_store::user_pref_set(&s.pool, &ws, &user, "sidebar", &txt).await.map_err(db_err)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Per-workspace overrides mapping a JIRA status NAME to a category

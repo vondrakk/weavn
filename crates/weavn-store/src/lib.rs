@@ -50,6 +50,31 @@ pub async fn config_get(pool: &PgPool, workspace: &str, key: &str) -> sqlx::Resu
         .await
 }
 
+/// Per-user preference value (workspace + user + key). `None` if unset.
+pub async fn user_pref_get(pool: &PgPool, workspace: &str, user: &str, key: &str) -> sqlx::Result<Option<String>> {
+    sqlx::query_scalar::<_, String>("select value from user_pref where workspace = $1 and user_id = $2 and key = $3")
+        .bind(workspace)
+        .bind(user)
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+}
+
+/// Upsert a per-user preference value.
+pub async fn user_pref_set(pool: &PgPool, workspace: &str, user: &str, key: &str, value: &str) -> sqlx::Result<()> {
+    sqlx::query(
+        "insert into user_pref (workspace, user_id, key, value) values ($1, $2, $3, $4) \
+         on conflict (workspace, user_id, key) do update set value = excluded.value, updated_at = now()",
+    )
+    .bind(workspace)
+    .bind(user)
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn config_list(pool: &PgPool, workspace: &str) -> sqlx::Result<Vec<(String, String)>> {
     sqlx::query_as::<_, (String, String)>(
         "select key, value from config where workspace_id = $1 order by key",

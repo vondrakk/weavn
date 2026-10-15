@@ -245,6 +245,25 @@
   .csec{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:7px 8px 2px}
   .csec.board{text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)}
   .crow .cn .cboard{opacity:.7}
+  /* custom sections + drag-and-drop ordering */
+  .sec{margin-bottom:2px}
+  .sechead{display:flex;align-items:center;gap:4px;padding:6px 8px 3px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;border-radius:6px;user-select:none}
+  .sechead:hover{background:var(--accent-weak)}
+  .sechead .chev{font-size:16px;color:var(--faint);transition:transform .12s;flex:none}
+  .sec.collapsed .chev{transform:rotate(-90deg)}
+  .sechead .snm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:0}
+  .sechead .smenu{opacity:0;color:var(--faint);font-size:16px;padding:0 2px}
+  .sechead:hover .smenu{opacity:1}
+  .sechead .smenu:hover{color:var(--accent)}
+  .sec.collapsed .secbody{display:none}
+  .secbody{min-height:6px}
+  .crow[draggable]{cursor:pointer}
+  .crow.dragging,.sec.dragging{opacity:.4}
+  .crow.dropbefore{box-shadow:inset 0 2px 0 var(--accent)}
+  .secbody.dropinto,.sec.dropinto>.sechead{background:var(--accent-weak);border-radius:6px}
+  .secdrag{box-shadow:inset 0 2px 0 var(--accent)}
+  .ungrp-label{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:9px 8px 2px}
+  #newsection .mi{font-size:15px}
   .chhead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 6px 8px;font-size:11px;color:var(--faint)}
   .chhead #rescanbtn{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:7px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer}
   .chhead #rescanbtn:hover{color:var(--accent);border-color:var(--accent)}
@@ -369,7 +388,7 @@
         <button class="snav" id="dmsbtn"><span class="mi">mail</span> Direct messages</button>
         <button class="snav" id="startersbtn"><span class="mi">auto_awesome</span> Starter channels</button>
       </div>
-      <div class="side-chead"><span>Channels</span><span class="chead-ctl"><button id="activitytoggle" title="Toggle: show only channels with new activity">All</button><button id="rescanbtn" title="Re-scan JIRA for boards"><span class="mi">refresh</span></button></span></div>
+      <div class="side-chead"><span>Channels</span><span class="chead-ctl"><button id="newsection" title="New section"><span class="mi">create_new_folder</span></button><button id="activitytoggle" title="Toggle: show only channels with new activity">All</button><button id="rescanbtn" title="Re-scan JIRA for boards"><span class="mi">refresh</span></button></span></div>
       <div class="side-chans" id="sidechans"><div class="pmuted">Loading channels…</div></div>
     </aside>
     <section class="center">
@@ -1140,40 +1159,73 @@ $('#dndbtn').addEventListener('click',async()=>{ STATE.dnd=!STATE.dnd; await sav
 let ACTIVITY=false;
 $('#rescanbtn').addEventListener('click',rescanChannels);
 async function rescanChannels(){ PROJECTS=[]; await ensureProjects(); renderSidebar(); }
+// ---- Personal sidebar layout: custom sections + drag-and-drop ordering -------
+let LAYOUT={sections:[]}, LAYOUT_LOADED=false, DRAG=null;
+async function loadLayout(){ try{const r=await api('/sidebar'); if(r.ok){const v=await r.json(); if(v&&Array.isArray(v.sections)) LAYOUT=v;}}catch(e){} LAYOUT_LOADED=true; }
+function saveLayout(){ try{api('/sidebar',{method:'POST',body:JSON.stringify(LAYOUT)});}catch(e){} }
+function newSectionId(){ return 's'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function secRemoveCh(ch){ LAYOUT.sections.forEach(s=>{ s.channels=(s.channels||[]).filter(x=>x!==ch); }); }
+function secAddCh(ch,sid,before){ const s=LAYOUT.sections.find(x=>x.id===sid); if(!s)return; secRemoveCh(ch); s.channels=s.channels||[]; if(before){const i=s.channels.indexOf(before); if(i>=0){s.channels.splice(i,0,ch);return;}} s.channels.push(ch); }
+function secMove(id,beforeId){ const i=LAYOUT.sections.findIndex(s=>s.id===id); if(i<0)return; const [sec]=LAYOUT.sections.splice(i,1); let j=beforeId?LAYOUT.sections.findIndex(s=>s.id===beforeId):LAYOUT.sections.length; if(j<0)j=LAYOUT.sections.length; LAYOUT.sections.splice(j,0,sec); }
+function clearDropMarks(cl){ cl.querySelectorAll('.dropbefore,.secdrag,.dropinto').forEach(x=>x.classList.remove('dropbefore','secdrag','dropinto')); }
+
 async function renderSidebar(){
   const cl=$('#sidechans');
   await ensureProjects();
+  if(!LAYOUT_LOADED) await loadLayout();
   let chs=[]; try{const r=await api('/channels'); if(r.ok)chs=await r.json();}catch(e){}
   const top=new Set(chs.map(c=>c.channel.split(' / ')[0]));
   PROJECTS.forEach(p=>{ if(!top.has(p.key)) chs.push({channel:p.key,count:0,unread:0,starred:false,archived:false,private:false,name:p.name}); });
   chs.forEach(c=>{ if(!c.name){const n=projName(c.channel.split(' / ')[0]); if(n)c.name=n;} });
-  if(ACTIVITY) chs=chs.filter(c=>c.unread>0 || c.channel===CURCH); // only what's changed
-  if(!chs.length){cl.innerHTML=`<div class="pmuted">${ACTIVITY?'Nothing new — you’re all caught up.':'No boards visible to your account.'}</div>`;return;}
-  const groups={};
-  chs.forEach(c=>{const seg=c.channel.split(' / ')[0];(groups[seg]=groups[seg]||[]).push(c);});
-  const names=Object.keys(groups).sort((a,b)=>{
-    const sa=groups[a].some(c=>c.starred), sb=groups[b].some(c=>c.starred);
-    return (sb-sa)||a.localeCompare(b);
-  });
+  const actOk=c=> !ACTIVITY || c.unread>0 || c.channel===CURCH; // "only what's changed"
+  const chMap={}; chs.forEach(c=>chMap[c.channel]=c);
   const row=(c,nested)=>{const tail=c.channel.slice(c.channel.split(' / ')[0].length).replace(/^ \/ /,'');
     // Show the human board NAME; keep the key as a faint secondary (less shouty).
     const label=nested?(tail||c.name||c.channel):(c.name||c.channel);
     const sub=(!nested&&c.name&&c.name!==c.channel)?` <span class="cboard">${esc(c.channel)}</span>`:'';
-    return `<div class="crow${c.archived?' arch':''}${nested?' nested':''}${c.unread>0?' unread':''}${c.channel===CURCH?' active':''}" data-ch="${esc(c.channel)}" title="${esc(c.channel)}${c.name?' — '+esc(c.name):''}">
+    return `<div class="crow${c.archived?' arch':''}${nested?' nested':''}${c.unread>0?' unread':''}${c.channel===CURCH?' active':''}" draggable="true" data-ch="${esc(c.channel)}" title="${esc(c.channel)}${c.name?' — '+esc(c.name):''}">
       <span class="st${c.starred?' on':''}" data-ch="${esc(c.channel)}" data-on="${c.starred?1:0}" title="Star channel"><span class="mi${c.starred?' filled':''}">star</span></span>
       <span class="cn">${c.private?'<span class="mi" style="font-size:13px;vertical-align:-2px">lock</span> ':''}${esc(label)}${sub}</span>${c.unread>0?`<span class="ubadge">${c.unread}</span>`:''}<span class="cc">${c.count||''}</span>
       <span class="ar" data-ch="${esc(c.channel)}" data-on="${c.archived?1:0}" title="Archive">${c.archived?'unarchive':'archive'}</span>
     </div>`;};
-  cl.innerHTML=names.map(seg=>{
-    const rows=groups[seg].sort((a,b)=>(b.starred-a.starred)||a.channel.localeCompare(b.channel));
-    const sectioned=rows.length>1||rows[0].channel!==seg;
-    const segName=projName(seg)||(rows.find(r=>r.channel===seg)||{}).name||seg;
-    return (sectioned?`<div class="csec board">${esc(segName)}</div>`:'')+rows.map(c=>row(c,sectioned)).join('');
-  }).join('');
-  cl.querySelectorAll('.crow').forEach(row=>row.addEventListener('click',e=>{
-    if(e.target.classList.contains('st')||e.target.classList.contains('ar'))return;
-    const ch=row.dataset.ch; openChannel(ch,ch.indexOf(' / ')<0);
-  }));
+  const assigned=new Set();
+  let html='';
+  // 1) the user's custom sections, in their order
+  LAYOUT.sections.forEach(sec=>{
+    const list=(sec.channels||[]).filter(ch=>chMap[ch]);
+    list.forEach(ch=>assigned.add(ch));
+    const shown=list.map(ch=>chMap[ch]).filter(actOk);
+    html+=`<div class="sec${sec.collapsed?' collapsed':''}" data-sid="${esc(sec.id)}">
+      <div class="sechead" draggable="true" data-sid="${esc(sec.id)}"><span class="mi chev">expand_more</span><span class="snm">${esc(sec.name)}</span><span class="mi smenu" data-sid="${esc(sec.id)}">more_horiz</span></div>
+      <div class="secbody" data-sid="${esc(sec.id)}">${shown.length?shown.map(c=>row(c,c.channel.indexOf(' / ')>=0)).join(''):'<div class="pmuted" style="padding:3px 10px;font-size:11px">Drag channels here</div>'}</div>
+    </div>`;
+  });
+  // 2) everything not placed in a section — auto-grouped by project (as before)
+  const remaining=chs.filter(c=>!assigned.has(c.channel)).filter(actOk);
+  if(remaining.length){
+    const groups={}; remaining.forEach(c=>{const seg=c.channel.split(' / ')[0];(groups[seg]=groups[seg]||[]).push(c);});
+    const names=Object.keys(groups).sort((a,b)=>{const sa=groups[a].some(c=>c.starred),sb=groups[b].some(c=>c.starred);return (sb-sa)||a.localeCompare(b);});
+    let ung=LAYOUT.sections.length?'<div class="ungrp-label">Everything else</div>':'';
+    names.forEach(seg=>{
+      const rows=groups[seg].sort((a,b)=>(b.starred-a.starred)||a.channel.localeCompare(b.channel));
+      const sectioned=rows.length>1||rows[0].channel!==seg;
+      const segName=projName(seg)||(rows.find(r=>r.channel===seg)||{}).name||seg;
+      ung+=(sectioned?`<div class="csec board">${esc(segName)}</div>`:'')+rows.map(c=>row(c,sectioned)).join('');
+    });
+    html+=`<div class="secbody ungrp" data-sid="">${ung}</div>`;
+  }
+  if(!html){cl.innerHTML=`<div class="pmuted">${ACTIVITY?'Nothing new — you’re all caught up.':'No boards visible to your account.'}</div>`;return;}
+  cl.innerHTML=html;
+  wireSidebar(cl);
+}
+function wireSidebar(cl){
+  cl.querySelectorAll('.crow').forEach(r=>{
+    r.addEventListener('click',e=>{ if(e.target.closest('.st')||e.target.closest('.ar'))return; const ch=r.dataset.ch; openChannel(ch,ch.indexOf(' / ')<0); });
+    r.addEventListener('dragstart',e=>{ DRAG={type:'ch',ch:r.dataset.ch}; r.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain',r.dataset.ch);}catch(_){} });
+    r.addEventListener('dragend',()=>{ r.classList.remove('dragging'); clearDropMarks(cl); DRAG=null; });
+    r.addEventListener('dragover',e=>{ if(DRAG&&DRAG.type==='ch'){ e.preventDefault(); clearDropMarks(cl); r.classList.add('dropbefore'); } });
+    r.addEventListener('drop',e=>{ if(DRAG&&DRAG.type==='ch'){ e.preventDefault(); e.stopPropagation(); const sid=r.closest('.secbody').dataset.sid; if(sid) secAddCh(DRAG.ch,sid,r.dataset.ch); else secRemoveCh(DRAG.ch); saveLayout(); renderSidebar(); } });
+  });
   cl.querySelectorAll('.st').forEach(st=>st.addEventListener('click',async e=>{
     e.stopPropagation();const on=st.dataset.on==='1';
     await api('/star',{method:'POST',body:JSON.stringify({channel:st.dataset.ch,on:!on})});
@@ -1184,7 +1236,35 @@ async function renderSidebar(){
     await api('/archive',{method:'POST',body:JSON.stringify({channel:ar.dataset.ch,on:!on})});
     ar.dataset.on=on?'0':'1';ar.textContent=on?'archive':'unarchive';ar.closest('.crow').classList.toggle('arch',!on);
   }));
+  cl.querySelectorAll('.secbody').forEach(body=>{
+    body.addEventListener('dragover',e=>{ if(DRAG&&DRAG.type==='ch'){ e.preventDefault(); if(body.dataset.sid){clearDropMarks(cl);body.classList.add('dropinto');} } });
+    body.addEventListener('drop',e=>{ if(DRAG&&DRAG.type==='ch'){ e.preventDefault(); const sid=body.dataset.sid; if(sid) secAddCh(DRAG.ch,sid,null); else secRemoveCh(DRAG.ch); saveLayout(); renderSidebar(); } });
+  });
+  cl.querySelectorAll('.sechead').forEach(h=>{
+    h.addEventListener('click',e=>{ if(e.target.closest('.smenu'))return; const s=LAYOUT.sections.find(x=>x.id===h.dataset.sid); if(s){ s.collapsed=!s.collapsed; saveLayout(); h.closest('.sec').classList.toggle('collapsed',s.collapsed); } });
+    h.addEventListener('dragstart',e=>{ DRAG={type:'sec',id:h.dataset.sid}; h.closest('.sec').classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.stopPropagation(); });
+    h.addEventListener('dragend',()=>{ h.closest('.sec').classList.remove('dragging'); clearDropMarks(cl); DRAG=null; });
+    h.addEventListener('dragover',e=>{ if(DRAG&&DRAG.type==='sec'){ e.preventDefault(); clearDropMarks(cl); h.classList.add('secdrag'); } });
+    h.addEventListener('drop',e=>{ if(DRAG&&DRAG.type==='sec'){ e.preventDefault(); e.stopPropagation(); secMove(DRAG.id,h.dataset.sid); saveLayout(); renderSidebar(); } });
+    h.querySelector('.smenu').addEventListener('click',e=>{ e.stopPropagation(); openSecMenu(h.querySelector('.smenu'),h.dataset.sid); });
+  });
 }
+function openSecMenu(anchor,sid){
+  document.querySelectorAll('.stmenu').forEach(m=>m.remove());
+  const s=LAYOUT.sections.find(x=>x.id===sid); if(!s)return;
+  const menu=document.createElement('div'); menu.className='stmenu';
+  menu.innerHTML='<div class="si" data-a="rename">Rename…</div><div class="si" data-a="up">Move up</div><div class="si" data-a="down">Move down</div><div class="si" data-a="del">Delete section</div>';
+  document.body.appendChild(menu);
+  const bb=anchor.getBoundingClientRect(); menu.style.left=Math.min(bb.left,window.innerWidth-180)+'px'; menu.style.top=(bb.bottom+4)+'px';
+  menu.querySelectorAll('.si').forEach(el=>el.addEventListener('click',()=>{ menu.remove(); const a=el.dataset.a;
+    if(a==='rename'){ const n=prompt('Section name:',s.name); if(n&&n.trim())s.name=n.trim(); }
+    else if(a==='del'){ LAYOUT.sections=LAYOUT.sections.filter(x=>x.id!==sid); }
+    else if(a==='up'||a==='down'){ const i=LAYOUT.sections.findIndex(x=>x.id===sid), j=a==='up'?i-1:i+1; if(j>=0&&j<LAYOUT.sections.length){ const t=LAYOUT.sections[i];LAYOUT.sections[i]=LAYOUT.sections[j];LAYOUT.sections[j]=t; } }
+    saveLayout(); renderSidebar();
+  }));
+  setTimeout(()=>document.addEventListener('click',function off(e){ if(!menu.contains(e.target)){menu.remove();document.removeEventListener('click',off);} }),0);
+}
+$('#newsection').addEventListener('click',()=>{ const n=prompt('New section name:','New section'); if(n===null)return; LAYOUT.sections.push({id:newSectionId(),name:n.trim()||'New section',collapsed:false,channels:[]}); saveLayout(); renderSidebar(); });
 $('#savedbtn').addEventListener('click',async()=>{
   const cl=$('#chanlist');
   if(cl.style.display==='flex'&&cl.dataset.mode==='saved'){cl.style.display='none';cl.dataset.mode='';return;}
