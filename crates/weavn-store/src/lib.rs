@@ -405,6 +405,35 @@ pub struct WsThread {
     pub last_at: i64, // unix seconds of the most recent message in the thread
 }
 
+/// One item in the unified temporal stream: any message (post/issue or comment)
+/// across the whole workspace, newest first.
+#[derive(sqlx::FromRow)]
+pub struct StreamRow {
+    pub channel: String,
+    pub issue_key: String,
+    pub parent_issue: Option<String>,
+    pub author: String,
+    pub body: String,
+    pub from_jira: bool,
+    pub status: String,
+    pub created_at: i64,
+}
+
+/// The unified temporal stream: recent messages across the whole workspace,
+/// newest first. Caller filters out private channels the user can't see.
+pub async fn workspace_stream(pool: &PgPool, workspace: &str, limit: i64) -> sqlx::Result<Vec<StreamRow>> {
+    sqlx::query_as::<_, StreamRow>(
+        "select channel, issue_key, parent_issue, author, body, from_jira, status, \
+                extract(epoch from created_at)::bigint as created_at \
+         from message where workspace = $1 and deleted = false \
+         order by created_at desc limit $2",
+    )
+    .bind(workspace)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
 /// Threads across the whole workspace that have replies, newest activity first.
 /// Caller is responsible for filtering out private channels the user can't see.
 pub async fn workspace_threads(pool: &PgPool, workspace: &str, limit: i64) -> sqlx::Result<Vec<WsThread>> {

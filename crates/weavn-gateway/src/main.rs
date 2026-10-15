@@ -254,6 +254,7 @@ async fn main() {
         .route("/refine", post(refine))
         .route("/read", get(read))
         .route("/threads", get(threads_feed))
+        .route("/stream", get(stream_feed))
         .route("/epics", get(epics))
         .route("/children", get(children))
         .route("/issue", get(issue_detail))
@@ -1150,6 +1151,50 @@ fn one_line(body: &str, max: usize) -> String {
     } else {
         flat
     }
+}
+
+/// One item in the unified temporal stream.
+#[derive(Serialize)]
+struct StreamItem {
+    channel: String,
+    issue_key: String,
+    kind: String, // "post" | "issue" | "reply" | "comment"
+    author: String,
+    snippet: String,
+    status: String,
+    ts: i64,
+}
+
+/// The unified "everything happening" stream: posts + comments across all boards
+/// the user can see, newest first. The client filters it down ("for you", by
+/// project, by text) — a channel is a saved filter over this stream.
+async fn stream_feed(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Vec<StreamItem>>, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    let priv_all: HashSet<String> = weavn_store::private_channels(&s.pool, &ws).await.map_err(db_err)?.into_iter().collect();
+    let mine: HashSet<String> = weavn_store::my_private_channels(&s.pool, &ws, &user).await.map_err(db_err)?.into_iter().collect();
+    let rows = weavn_store::workspace_stream(&s.pool, &ws, 500).await.map_err(db_err)?;
+    let items = rows
+        .into_iter()
+        .filter(|r| !priv_all.contains(&r.channel) || mine.contains(&r.channel))
+        .map(|r| {
+            let kind = match (r.parent_issue.is_some(), r.from_jira) {
+                (true, true) => "comment",
+                (true, false) => "reply",
+                (false, true) => "issue",
+                (false, false) => "post",
+            };
+            StreamItem {
+                channel: r.channel,
+                issue_key: r.issue_key,
+                kind: kind.to_string(),
+                author: r.author,
+                snippet: one_line(&r.body, 160),
+                status: r.status,
+                ts: r.created_at,
+            }
+        })
+        .collect();
+    Ok(Json(items))
 }
 
 // --- Browse: Projects → Epics → Stories/Tasks (live JIRA drill-down) ----------

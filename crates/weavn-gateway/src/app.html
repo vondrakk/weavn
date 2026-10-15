@@ -252,6 +252,15 @@
   .feedhead{padding:12px 18px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
   .feedhead .fh-sub{font-weight:400;color:var(--muted);font-size:12px}
   .feedbody{flex:1;overflow:auto;padding:8px 0}
+  /* unified stream header */
+  .streamhead{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap}
+  .segpill{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex:none}
+  .segpill button{border:0;background:var(--bg);color:var(--muted);font:inherit;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer}
+  .segpill button.on{background:var(--accent);color:#fff}
+  .streamhead select{border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;font-size:12px;background:var(--surface);color:var(--fg);cursor:pointer}
+  .fitem .fkindchip{font-size:9px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;border-radius:4px;padding:1px 5px;background:var(--accent-weak);color:var(--accent)}
+  .fitem .fkindchip.post{color:var(--thread);background:color-mix(in srgb,var(--thread) 14%,transparent)}
+  .fitem .fkindchip.comment,.fitem .fkindchip.reply{color:var(--muted);background:var(--accent-weak)}
   .fitem{display:flex;gap:11px;padding:11px 18px;cursor:pointer;border-bottom:1px solid var(--border)}
   .fitem:hover{background:var(--accent-weak)}
   .fitem.unread{background:var(--accent-weak)}
@@ -483,11 +492,21 @@
     </aside>
     <section class="center">
       <div class="viewtabs">
-        <button class="viewtab on" data-v="updates" title="The open board's message river"><span class="mi">forum</span> Updates</button>
+        <button class="viewtab on" data-v="stream" title="Everything happening, filtered to you"><span class="mi">bolt</span> For You</button>
+        <button class="viewtab" data-v="updates" title="The open board's message river"><span class="mi">forum</span> Channel</button>
         <button class="viewtab" data-v="threads" title="Every threaded conversation across your boards"><span class="mi">comment</span> Threads</button>
         <button class="viewtab" data-v="activity" title="Mentions &amp; alerts across your boards"><span class="mi">notifications</span> Activity<span class="vb" id="actbadge" style="display:none"></span></button>
       </div>
-      <div id="updatesview">
+      <div class="feedview hidden" id="streamview">
+        <div class="streamhead">
+          <div class="segpill" id="streamscope"><button data-s="you" class="on">For you</button><button data-s="all">Everything</button></div>
+          <span class="fqwrap" style="flex:1"><span class="mi">search</span><input class="fq" id="streamq" placeholder="Filter the stream… (a channel is a saved filter)" autocomplete="off" spellcheck="false"></span>
+          <select id="streamproj" title="Filter by board"><option value="">All boards</option></select>
+          <span class="fcount" id="streamcount"></span>
+        </div>
+        <div class="feedbody" id="streamfeed"><div class="feedempty"><span class="spin"></span>Loading…</div></div>
+      </div>
+      <div class="hidden" id="updatesview">
         <div class="chbar">
           <input id="channel" value="" spellcheck="false" placeholder="project / sub-topic">
           <button id="load">Load</button>
@@ -647,6 +666,7 @@ async function showApp(sess){
   renderUsage(USAGE);
   await loadSaved(); loadState(); await loadStatusMap(); applyDensity();
   renderSidebar(); connectWS(); loadAvailability(); loadNotifications();
+  setView('stream'); // the unified "For You" stream is home
 }
 let NOTIFS={unread:0,items:[]};
 function renderBell(n){
@@ -1119,19 +1139,69 @@ async function openTreeIssue(key){
   TREEISSUE=d; renderThread(d); $('#threadinput').focus();
 }
 
-// --- views: Updates (the board river) | Threads | Activity (both workspace-wide) ---
-let VIEW='updates';
+// --- views: For You (the unified stream) | Channel | Threads | Activity ---------
+let VIEW='stream';
 function setView(v){
   VIEW=v;
+  $('#streamview').classList.toggle('hidden',v!=='stream');
   $('#updatesview').classList.toggle('hidden',v!=='updates');
   $('#threadsview').classList.toggle('hidden',v!=='threads');
   $('#activityview').classList.toggle('hidden',v!=='activity');
   document.querySelectorAll('.viewtab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   if(v!=='updates') closeThread();
-  if(v==='threads') loadThreadsFeed();
+  if(v==='stream') loadStream();
+  else if(v==='threads') loadThreadsFeed();
   else if(v==='activity') loadActivityFeed();
 }
 document.querySelectorAll('.viewtab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.v)));
+
+// --- The unified temporal stream ("For You" by default) -------------------------
+// A channel is a filter. This is the firehose of posts + comments across every
+// board, filtered to what touches you (scope "you") or everything (scope "all").
+let STREAM=[], STREAM_SCOPE='you', STREAM_Q='', STREAM_PROJ='';
+function streamInvolvesMe(it){
+  const me=(MENAME||'').toLowerCase();
+  if(!me) return true;
+  if((it.author||'').toLowerCase()===me) return true;              // I wrote it
+  if((it.snippet||'').toLowerCase().includes('@'+me.split(' ')[0])) return true; // mentions me
+  if(STREAM_MINE.has(it.issue_key)) return true;                   // I'm on this issue
+  return false;
+}
+let STREAM_MINE=new Set();
+function fmtStreamKind(k){ return k==='post'?'POST':(k==='issue'?'ISSUE':(k==='comment'?'JIRA':'REPLY')); }
+async function loadStream(){
+  const el=$('#streamfeed'); if(!STREAM.length) el.innerHTML='<div class="feedempty"><span class="spin"></span>Loading the stream…</div>';
+  try{const r=await api('/stream'); if(r.ok)STREAM=await r.json();}catch(e){}
+  // boards present → the project facet; issues I've touched → "for you" membership
+  const me=(MENAME||'').toLowerCase();
+  STREAM_MINE=new Set(STREAM.filter(it=>(it.author||'').toLowerCase()===me).map(it=>it.issue_key));
+  const boards=[...new Set(STREAM.map(it=>it.channel.split(' / ')[0]))].sort();
+  const sel=$('#streamproj'); const cur=sel.value;
+  sel.innerHTML='<option value="">All boards</option>'+boards.map(b=>`<option value="${esc(b)}">${esc(projName(b)||b)}</option>`).join('');
+  sel.value=boards.includes(cur)?cur:''; STREAM_PROJ=sel.value;
+  renderStreamFeed();
+}
+function renderStreamFeed(){
+  const el=$('#streamfeed');
+  let a=STREAM.slice();
+  if(STREAM_SCOPE==='you') a=a.filter(streamInvolvesMe);
+  if(STREAM_PROJ) a=a.filter(it=>it.channel.split(' / ')[0]===STREAM_PROJ);
+  const q=STREAM_Q.trim().toLowerCase();
+  if(q) a=a.filter(it=>((it.author||'')+' '+(it.channel||'')+' '+(it.issue_key||'')+' '+(it.snippet||'')).toLowerCase().includes(q));
+  $('#streamcount').textContent=a.length?`${a.length} item${a.length===1?'':'s'}`:'';
+  if(!a.length){ el.innerHTML=`<div class="feedempty">${STREAM.length?'Nothing matches this filter.':'No activity yet — post something or open a board to pull it in.'}</div>`; return; }
+  el.innerHTML=a.map(it=>`<div class="fitem" data-issue="${esc(it.issue_key)}" data-ch="${esc(it.channel)}">
+      <div class="fav">${esc(initials(it.author))}</div>
+      <div class="fmain">
+        <div class="ftop"><span class="fa">${esc(it.author)}</span><span class="fkindchip ${esc(it.kind)}">${fmtStreamKind(it.kind)}</span><span class="fch">#${esc(it.channel)}</span>${it.status?`<span class="fkind">${esc(it.status)}</span>`:''}<span class="ftime">${esc(fmtTime(it.ts))}</span></div>
+        <div class="fbody">${esc(it.snippet)}</div>
+      </div>
+    </div>`).join('');
+  el.querySelectorAll('.fitem').forEach(f=>f.addEventListener('click',()=>openTreeIssue(f.dataset.issue)));
+}
+$('#streamscope').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ STREAM_SCOPE=b.dataset.s; $('#streamscope').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); renderStreamFeed(); }));
+$('#streamq').addEventListener('input',e=>{ STREAM_Q=e.target.value; renderStreamFeed(); });
+$('#streamproj').addEventListener('change',e=>{ STREAM_PROJ=e.target.value; renderStreamFeed(); });
 // Jump from a workspace feed into a board's river, optionally opening a thread.
 async function jumpTo(channel,issue){
   if(!channel) return;
