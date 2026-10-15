@@ -189,6 +189,9 @@ async fn main() {
         .route("/unfurl", get(unfurl))
         .route("/sprints", get(sprints))
         .route("/sprint/assign", post(sprint_assign))
+        .route("/dm/send", post(dm_send))
+        .route("/dm/list", get(dm_list))
+        .route("/dm/read", get(dm_read))
         .route("/react", post(react))
         .route("/markread", post(mark_read))
         .route("/search", get(search))
@@ -1621,6 +1624,137 @@ async fn sprint_assign(State(s): State<Shared>, headers: HeaderMap, Json(r): Jso
     })
     .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// --- Tier 4: encrypted DM vault ---------------------------------------------
+
+/// Get-or-create an age keypair for an owner (accountId or "__escrow__"); returns
+/// the public key. Secret keys are stored at rest (prototype; prod uses a KMS).
+async fn vault_pub(s: &AppState, owner: &str) -> Result<String, ApiError> {
+    if let Some((pubk, _sec)) = weavn_store::vault_key_get(&s.pool, owner).await.map_err(db_err)? {
+        return Ok(pubk);
+    }
+    let kp = weavn::keys::generate();
+    weavn_store::vault_key_put(&s.pool, owner, &kp.public, &kp.secret).await.map_err(db_err)?;
+    Ok(kp.public)
+}
+
+#[derive(Deserialize)]
+struct DmTarget {
+    id: String,
+    #[serde(default)]
+    display: String,
+}
+
+#[derive(Deserialize)]
+struct DmSendReq {
+    #[serde(default)]
+    to: Vec<DmTarget>,
+    #[serde(default)]
+    convo: Option<i64>,
+    #[serde(default)]
+    text: String,
+}
+
+#[derive(Serialize)]
+struct DmConvoResp {
+    id: i64,
+    title: String,
+    members: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct DmLineResp {
+    from: String,
+    text: String,
+    ts: i64,
+    mine: bool,
+}
+
+/// Send a DM: encrypt the body to every participant + the org escrow key and
+/// store it in the vault. Never touches JIRA.
+async fn dm_send(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<DmSendReq>) -> Result<Json<serde_json::Value>, ApiError> {
+    let sess = session(&s, &headers)?;
+    let ws = sess.site.clone().unwrap_or_else(|| "default".to_string());
+    let me = sess.subject.clone();
+    let me_disp = sess.author();
+    if r.text.trim().is_empty() {
+        return Err(bad_request("empty message".to_string()));
+    }
+    let mut mem: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    if let Some(cid) = r.convo {
+        // reply into an existing conversation — reuse its member set
+        if !weavn_store::dm_is_member(&s.pool, cid, &me).await.map_err(db_err)? {
+            return Err((StatusCode::FORBIDDEN, "not a participant".to_string()));
+        }
+        for (id, disp) in weavn_store::dm_members(&s.pool, cid).await.map_err(db_err)? {
+            mem.insert(id, disp);
+        }
+    } else {
+        mem.insert(me.clone(), me_disp.clone());
+        for t in &r.to {
+            let id = t.id.trim();
+            if !id.is_empty() {
+                mem.insert(id.to_string(), if t.display.trim().is_empty() { id.to_string() } else { t.display.trim().to_string() });
+            }
+        }
+    }
+    if mem.len() < 2 {
+        return Err(bad_request("add at least one recipient".to_string()));
+    }
+    let mut pubs = Vec::new();
+    for id in mem.keys() {
+        pubs.push(vault_pub(&s, id).await?);
+    }
+    pubs.push(vault_pub(&s, "__escrow__").await?);
+    let ct = weavn::keys::encrypt_to(&pubs, r.text.trim().as_bytes()).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let members_csv = mem.keys().cloned().collect::<Vec<_>>().join(","); // BTreeMap → sorted
+    let title = mem.values().cloned().collect::<Vec<_>>().join(", ");
+    let convo = weavn_store::dm_convo_upsert(&s.pool, &ws, &members_csv, &title).await.map_err(db_err)?;
+    for (id, disp) in &mem {
+        weavn_store::dm_member_put(&s.pool, convo, id, disp).await.map_err(db_err)?;
+    }
+    weavn_store::dm_message_insert(&s.pool, convo, &me, &me_disp, &ct).await.map_err(db_err)?;
+    s.hub.publish(&ws, serde_json::json!({ "type": "dm" }).to_string());
+    Ok(Json(serde_json::json!({ "convo": convo })))
+}
+
+async fn dm_list(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Vec<DmConvoResp>>, ApiError> {
+    let (ws, me) = user_ctx(&s, &headers)?;
+    let convos = weavn_store::dm_convos_for(&s.pool, &ws, &me).await.map_err(db_err)?;
+    let mut out = Vec::new();
+    for (id, _members, _title, _ts) in convos {
+        let members = weavn_store::dm_members(&s.pool, id).await.map_err(db_err)?;
+        let others: Vec<String> = members.iter().filter(|(acc, _)| acc != &me).map(|(_, d)| d.clone()).collect();
+        let title = if others.is_empty() { "(you)".to_string() } else { others.join(", ") };
+        out.push(DmConvoResp { id, title, members: members.into_iter().map(|(_, d)| d).collect() });
+    }
+    Ok(Json(out))
+}
+
+#[derive(Deserialize)]
+struct DmReadQuery {
+    convo: i64,
+}
+
+async fn dm_read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<DmReadQuery>) -> Result<Json<Vec<DmLineResp>>, ApiError> {
+    let (_ws, me) = user_ctx(&s, &headers)?;
+    if !weavn_store::dm_is_member(&s.pool, q.convo, &me).await.map_err(db_err)? {
+        return Err((StatusCode::FORBIDDEN, "not a participant".to_string()));
+    }
+    let (_pub, sec) = weavn_store::vault_key_get(&s.pool, &me)
+        .await
+        .map_err(db_err)?
+        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "no vault key for you".to_string()))?;
+    let msgs = weavn_store::dm_messages(&s.pool, q.convo).await.map_err(db_err)?;
+    let lines = msgs
+        .into_iter()
+        .map(|(sender, disp, ct, ts)| {
+            let text = weavn::keys::decrypt_with(&sec, &ct).ok().and_then(|b| String::from_utf8(b).ok()).unwrap_or_else(|| "[locked]".to_string());
+            DmLineResp { from: disp, text, ts, mine: sender == me }
+        })
+        .collect();
+    Ok(Json(lines))
 }
 
 // --- Tier 3: incoming webhooks ----------------------------------------------

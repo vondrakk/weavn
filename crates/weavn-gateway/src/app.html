@@ -199,6 +199,7 @@
     <button class="kk" id="savedbtn" title="Saved items">★ Saved</button>
     <button class="kk" id="searchbtn" title="Search messages">🔍 Search</button>
     <button class="kk" id="startersbtn" title="Suggested starter channels">✨ Starter</button>
+    <button class="kk" id="dmsbtn" title="Direct messages (encrypted)">✉ DMs</button>
     <a class="kk" id="dash" target="_blank" rel="noopener" href="#">Dashboards ↗</a>
     <span class="pres" id="pres" title="People here now"></span>
     <span class="pres" id="onclock" title="On the clock"></span>
@@ -250,6 +251,7 @@ let SITE='', PROJECTS=[], CURCH='';
 let SAVED=new Set(), STATE={emoji:null,text:null,dnd:false};
 let WS=null, WS_RETRY=0, lastTyping=0, typingClear=null, MEID='', MENAME='';
 let MENTIONS=[], MN_ITEMS=[], MN_SEL=0, MN_AT=-1, mnTimer=null;
+let CURDM=null; // {id, members:[{id,display}]} when a DM is open
 async function api(path,opts={}){opts.credentials='same-origin';opts.headers=Object.assign({'content-type':'application/json'},opts.headers||{});return fetch(path,opts);}
 function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function initials(n){return (n||'?').split(/[\s@._]/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('');}
@@ -407,7 +409,7 @@ function restoreDraft(){try{$('#body').value=localStorage.getItem('weavn-draft:'
 
 async function loadChannel(){
   const ch=$('#channel').value.trim();const sub=$('#subtree').checked;
-  CURCH=ch; restoreDraft();
+  CURCH=ch; CURDM=null; restoreDraft();
   $('#typing').textContent='';
   const pn=projName(ch);
   $('#topic').textContent=pn?`${ch} · ${pn}`:`${ch}`;
@@ -535,6 +537,14 @@ async function openSprintMenu(btn, issue){
 $('#body').addEventListener('input',saveDraft);
 $('#sendform').addEventListener('submit',async e=>{
   e.preventDefault();const body=$('#body').value.trim();if(!body)return;
+  if(CURDM){
+    const payload = CURDM.id!=null ? {convo:CURDM.id, text:body}
+                                   : {to:CURDM.members.map(m=>({id:m.id,display:m.display})), text:body};
+    const r=await api('/dm/send',{method:'POST',body:JSON.stringify(payload)});
+    $('#body').value='';
+    if(r.ok){ const d=await r.json(); CURDM.id=d.convo; reloadDM(); } else alert('DM failed: '+await r.text());
+    return;
+  }
   const mentions=MENTIONS.filter(m=>body.includes('@'+m.text));
   await api('/send',{method:'POST',body:JSON.stringify({channel:$('#channel').value.trim(),body,mentions})});
   $('#body').value='';MENTIONS=[];closeMentions();saveDraft();loadChannel();
@@ -671,6 +681,7 @@ function connectWS(){
     else if(m.type==='presence'){ renderPresence(m.users||[]); }
     else if(m.type==='availability'){ loadAvailability(); }
     else if(m.type==='notify'){ loadNotifications(); }
+    else if(m.type==='dm'){ reloadDM(); }
     else if(m.type==='typing'){ if(m.channel===CURCH && m.who!==MENAME) showTyping(m.who); }
   };
   sock.onclose=()=>{ WS=null; if($('#app').classList.contains('hidden'))return;
@@ -679,7 +690,7 @@ function connectWS(){
 }
 // debounce live reloads so a burst of events costs one fetch
 let reloadT=null;
-function scheduleReload(){ clearTimeout(reloadT); reloadT=setTimeout(loadChannel,250); }
+function scheduleReload(){ if(CURDM)return; clearTimeout(reloadT); reloadT=setTimeout(loadChannel,250); }
 
 function renderPresence(users){
   const el=$('#pres'); if(!users.length){el.innerHTML='';return;}
@@ -923,6 +934,48 @@ async function loadWebhooks(ch){
   el.querySelectorAll('.ar[data-copy]').forEach(b=>b.addEventListener('click',async()=>{ const ok=await copyText(b.dataset.copy); if(!ok)prompt('Copy URL:',b.dataset.copy); }));
   el.querySelectorAll('.ar[data-del]').forEach(b=>b.addEventListener('click',async()=>{ await api('/webhook/delete',{method:'POST',body:JSON.stringify({token:b.dataset.del})}); loadWebhooks(ch); }));
 }
+
+// --- DMs (encrypted vault) --------------------------------------------------
+$('#dmsbtn').addEventListener('click',openDmList);
+async function openDmList(){
+  const cl=$('#chanlist');
+  if(cl.style.display==='flex'&&cl.dataset.mode==='dm'){cl.style.display='none';cl.dataset.mode='';return;}
+  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='dm';
+  cl.innerHTML='<div class="pmuted" style="padding:6px 8px">Loading…</div>';
+  const r=await api('/dm/list'); const convos=r.ok?await r.json():[];
+  cl.innerHTML='<div style="padding:7px 8px"><button id="newdm" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer">＋ New DM</button></div>'
+    +'<div class="starthint">End-to-encrypted in the vault — never stored in JIRA.</div>'
+    +(convos.length?convos.map(c=>`<div class="crow" data-id="${c.id}"><span class="cn">✉ ${esc(c.title)}</span></div>`).join(''):'<div class="pmuted" style="padding:4px 8px">No direct messages yet.</div>');
+  $('#newdm').addEventListener('click',newDm);
+  cl.querySelectorAll('.crow[data-id]').forEach(row=>row.addEventListener('click',()=>{ cl.style.display='none'; cl.dataset.mode=''; openDM(+row.dataset.id); }));
+}
+async function newDm(){
+  const q=prompt('Start a DM with (name or email):'); if(q===null||!q.trim())return;
+  const r=await api('/users?q='+encodeURIComponent(q.trim())); const users=r.ok?await r.json():[];
+  if(!users.length){alert('No matching user.');return;}
+  const u=users[0];
+  $('#chanlist').style.display='none'; $('#chanlist').dataset.mode='';
+  CURCH=''; CURDM={id:null, members:[{id:u.id,display:u.display}]};
+  renderDmHeader(u.display);
+  $('#stream').innerHTML='<div class="empty">New encrypted DM with <b>'+esc(u.display)+'</b> — type below. Messages are encrypted to each participant in the vault and never stored in JIRA.</div>';
+  $('#body').focus();
+}
+async function openDM(id){
+  CURCH=''; CURDM={id, members:[]};
+  const r=await api('/dm/read?convo='+id);
+  renderDmHeader('direct message');
+  if(!r.ok){$('#stream').innerHTML='<div class="empty">'+esc(await r.text())+'</div>';return;}
+  renderDmLines(await r.json());
+}
+function renderDmHeader(title){ $('#topic').textContent='🔒 DM · '+title; }
+function renderDmLines(lines){
+  const s=$('#stream');
+  s.innerHTML = lines.length
+    ? lines.map(l=>`<div class="rep"${l.mine?' style="opacity:.95"':''}><span class="ra">${esc(l.from)}</span> <span class="time">${esc(fmtTime(l.ts))}</span>: ${mdInline(esc(l.text))}</div>`).join('')
+    : '<div class="empty">No messages yet.</div>';
+  s.scrollTop=s.scrollHeight;
+}
+async function reloadDM(){ if(!CURDM||CURDM.id==null)return; const r=await api('/dm/read?convo='+CURDM.id); if(r.ok) renderDmLines(await r.json()); }
 
 (async()=>{const s=await me();if(s)showApp(s);else showLogin();})();
 </script>

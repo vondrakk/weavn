@@ -106,7 +106,7 @@ chat clone:
 
 | Feature | Weavn mapping | Diff | Status |
 |---|---|---|---|
-| **Direct messages / group DMs** | **Encrypted vault** (per-convo key, org escrow) — privacy fights the shared record | 4 | ◑ |
+| **Direct messages / group DMs** | **Encrypted vault** (age, per-participant + org escrow) — Postgres-only, never JIRA | 4 | ✅ |
 | Block Kit / interactive messages (buttons, modals) | No JIRA primitive; a bespoke interaction layer | 4 | ○ |
 | Workflow Builder (no-code automations) | A workflow engine over JIRA transitions/fields | 4 | ○ |
 | Bots / bot users | Service identities + an events/API surface | 4 | ○ |
@@ -145,8 +145,12 @@ nearly free or JIRA-native:
 
 ## The structural tax (harder here than in Slack)
 
-- **DMs** — a shared system of record is the wrong place for private 1:1s; the
-  encrypted vault (Tier 4) is the price of keeping "everything is a record."
+- **DMs** — a shared system of record is the wrong place for private 1:1s, so
+  they live in an **age-encrypted vault in Postgres and never become JIRA
+  issues** (Tier 4, shipped): each message is encrypted to every participant
+  plus an org-escrow key, so participants read it, outsiders can't, and the org
+  can recover for compliance. (Prototype stores keypairs at rest; production
+  wraps the secret keys under a KMS.)
 - **Private channels** — shipped as a gateway-enforced membership ACL. Because
   native-channel issues still live in the shared storage project, this is access
   control at the Weavn layer, not JIRA issue-level security; a JIRA admin can

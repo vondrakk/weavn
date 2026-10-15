@@ -688,3 +688,73 @@ pub async fn webhook_delete(pool: &PgPool, ws: &str, token: &str) -> sqlx::Resul
     sqlx::query("delete from webhook where workspace=$1 and token=$2").bind(ws).bind(token).execute(pool).await?;
     Ok(())
 }
+
+// --- Tier 4: encrypted DM vault ---------------------------------------------
+
+/// (public_key, secret_key) for an owner, if a keypair exists.
+pub async fn vault_key_get(pool: &PgPool, owner: &str) -> sqlx::Result<Option<(String, String)>> {
+    sqlx::query_as::<_, (String, String)>("select public_key, secret_key from vault_key where owner=$1")
+        .bind(owner).fetch_optional(pool).await
+}
+
+pub async fn vault_key_put(pool: &PgPool, owner: &str, public_key: &str, secret_key: &str) -> sqlx::Result<()> {
+    sqlx::query("insert into vault_key (owner, public_key, secret_key) values ($1,$2,$3) on conflict (owner) do nothing")
+        .bind(owner).bind(public_key).bind(secret_key).execute(pool).await?;
+    Ok(())
+}
+
+/// Get-or-create a DM conversation id for a sorted member set.
+pub async fn dm_convo_upsert(pool: &PgPool, ws: &str, members: &str, title: &str) -> sqlx::Result<i64> {
+    sqlx::query_scalar::<_, i64>(
+        "insert into dm_convo (workspace, members, title) values ($1,$2,$3) \
+         on conflict (workspace, members) do update set title = excluded.title returning id",
+    )
+    .bind(ws).bind(members).bind(title).fetch_one(pool).await
+}
+
+pub async fn dm_member_put(pool: &PgPool, convo_id: i64, account: &str, display: &str) -> sqlx::Result<()> {
+    sqlx::query(
+        "insert into dm_member (convo_id, account, display) values ($1,$2,$3) \
+         on conflict (convo_id, account) do update set display = excluded.display",
+    )
+    .bind(convo_id).bind(account).bind(display).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn dm_members(pool: &PgPool, convo_id: i64) -> sqlx::Result<Vec<(String, String)>> {
+    sqlx::query_as::<_, (String, String)>("select account, display from dm_member where convo_id=$1 order by display")
+        .bind(convo_id).fetch_all(pool).await
+}
+
+pub async fn dm_is_member(pool: &PgPool, convo_id: i64, account: &str) -> sqlx::Result<bool> {
+    let n: i64 = sqlx::query_scalar("select count(*) from dm_member where convo_id=$1 and account=$2")
+        .bind(convo_id).bind(account).fetch_one(pool).await?;
+    Ok(n > 0)
+}
+
+/// Conversations an account is in: (id, members, title, last activity unix secs).
+pub async fn dm_convos_for(pool: &PgPool, ws: &str, account: &str) -> sqlx::Result<Vec<(i64, String, String, i64)>> {
+    sqlx::query_as::<_, (i64, String, String, i64)>(
+        "select c.id, c.members, c.title, \
+         coalesce((select extract(epoch from max(created_at))::bigint from dm_message m where m.convo_id=c.id), \
+                  extract(epoch from c.created_at)::bigint) as last_ts \
+         from dm_convo c join dm_member mem on mem.convo_id = c.id \
+         where c.workspace=$1 and mem.account=$2 order by last_ts desc",
+    )
+    .bind(ws).bind(account).fetch_all(pool).await
+}
+
+pub async fn dm_message_insert(pool: &PgPool, convo_id: i64, sender: &str, sender_display: &str, ciphertext: &str) -> sqlx::Result<()> {
+    sqlx::query("insert into dm_message (convo_id, sender, sender_display, ciphertext) values ($1,$2,$3,$4)")
+        .bind(convo_id).bind(sender).bind(sender_display).bind(ciphertext).execute(pool).await?;
+    Ok(())
+}
+
+/// Messages in a conversation: (sender, sender_display, ciphertext, ts).
+pub async fn dm_messages(pool: &PgPool, convo_id: i64) -> sqlx::Result<Vec<(String, String, String, i64)>> {
+    sqlx::query_as::<_, (String, String, String, i64)>(
+        "select sender, sender_display, ciphertext, extract(epoch from created_at)::bigint \
+         from dm_message where convo_id=$1 order by id",
+    )
+    .bind(convo_id).fetch_all(pool).await
+}
