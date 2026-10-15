@@ -1,5 +1,12 @@
 # Weavn Roadmap — Slack feature parity, ranked by difficulty
 
+> **Build status.** Tiers 1 & 2 complete. Tier 3: 23 built, 4 spec'd (Okta,
+> SCIM, guests, outgoing webhooks — need an IdP or a policy decision). Tier 4:
+> 4 built (DMs encrypted vault, bots, interactive messages, Workflow Builder),
+> 7 spec'd (need external infra/scale). Tier 5 (real-time A/V) is out of scope
+> by the founding brief. Everything spec'd/parked is detailed in
+> `INTEGRATIONS_BACKLOG.md`.
+
 A complete inventory of Slack's features, each stack-ranked by how hard it is to
 reproduce in Weavn. The ranking is **specific to Weavn's architecture**: JIRA is the
 system of record (message → issue, reply → comment, channel → board), with a Postgres
@@ -110,13 +117,13 @@ chat clone:
 | Block Kit / interactive messages (buttons, modals) | Action buttons → allowlisted gateway actions (transition/reply/ack) | 4 | ✅ (buttons) |
 | Workflow Builder (no-code automations) | Rule engine: match on new message → allowlisted action | 4 | ✅ |
 | Bots / bot users | Named token identity; posts via the service account | 4 | ✅ |
-| Custom app platform (OAuth, scopes, app directory) | A third-party developer platform | 4 | ○ |
-| Canvas (collaborative docs) | A real-time collaborative doc editor | 4 | ○ |
-| Slack Connect (cross-org shared channels) | Federation across two JIRA sites + trust | 4 | ○ |
-| Enterprise Grid (multi-workspace org) | Multi-tenant org model over many JIRA sites | 4 | ○ |
-| Rich media (GIF/Giphy, large video) | Media pipeline + CDN | 4 | ○ |
-| Push notifications (mobile/desktop) | APNs/FCM + a mobile client | 4 | ○ |
-| Enterprise Key Management (EKM) | Customer-managed keys over the vault | 4 | ○ |
+| Custom app platform (OAuth, scopes, app directory) | A third-party developer platform | 4 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
+| Canvas (collaborative docs) | A real-time collaborative doc editor | 4 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
+| Slack Connect (cross-org shared channels) | Federation across two JIRA sites + trust | 4 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
+| Enterprise Grid (multi-workspace org) | Multi-tenant org model over many JIRA sites | 4 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
+| Rich media (GIF/Giphy, large video) | Media pipeline + CDN | 4 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
+| Push notifications (mobile/desktop) | APNs/FCM + a mobile client | 4 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
+| Enterprise Key Management (EKM) | Customer-managed keys over the vault | 4 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
 
 ### Tier 5 — Very Hard / out of scope (real-time A/V)
 
