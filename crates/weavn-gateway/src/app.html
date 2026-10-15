@@ -270,6 +270,26 @@
   .feedhead{padding:12px 18px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
   .feedhead .fh-sub{font-weight:400;color:var(--muted);font-size:12px}
   .feedbody{flex:1;overflow:auto;padding:8px 0}
+  /* "Catch me up" brief — ambient, confirmable IC digest atop the stream */
+  .brief{border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--accent) 4%,var(--surface));padding:10px 16px 12px;flex:none}
+  .brief.hidden{display:none}
+  .brief-h{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px}
+  .brief-h b{font-weight:700}
+  .brief-h .mi{color:var(--accent)}
+  .brief-h .brief-sub{color:var(--muted);font-size:12px;flex:1}
+  .brief-h .brief-x{border:0;background:transparent;color:var(--faint);font-size:16px;cursor:pointer;line-height:1}
+  .brief-h .brief-x:hover{color:var(--accent)}
+  .brief-sec{margin-top:5px}
+  .brief-lbl{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:3px 2px}
+  .brief-lbl.warn{color:#c8921a}
+  .brief-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;cursor:pointer;font-size:13px}
+  .brief-row:hover{background:var(--accent-weak)}
+  .brief-row .brow-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brief-row .brow-idle{color:#c8921a;font-size:11px;font-weight:600;white-space:nowrap}
+  .brief-row .brow-k{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .brief-row .brow-go{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:3px 9px;font:inherit;font-size:11px;font-weight:600;cursor:pointer;opacity:0}
+  .brief-row .brow-go2{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:7px;padding:3px 9px;font:inherit;font-size:11px;cursor:pointer;opacity:0}
+  .brief-row:hover .brow-go,.brief-row:hover .brow-go2{opacity:1}
   /* unified stream header */
   .streamhead{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap}
   .segpill{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex:none}
@@ -524,6 +544,7 @@
           <button id="streamsave" class="fgear" title="Save this view as a channel"><span class="mi">bookmark_add</span></button>
           <span class="fcount" id="streamcount"></span>
         </div>
+        <div class="brief hidden" id="brief"></div>
         <div class="feedbody" id="streamfeed"><div class="feedempty"><span class="spin"></span>Loading…</div></div>
         <div class="composer streamcomposer">
           <form id="streamform">
@@ -1207,6 +1228,40 @@ async function loadStream(){
   sel.innerHTML='<option value="">All boards</option>'+boards.map(b=>`<option value="${esc(b)}">${esc(projName(b)||b)}</option>`).join('');
   sel.value=boards.includes(cur)?cur:''; STREAM_PROJ=sel.value;
   renderStreamFeed();
+  loadBrief();
+}
+// --- "Catch me up" brief: ambient, confirmable IC digest (heuristic, from JQL) ---
+let BRIEF_HIDDEN=false;
+function briefSnoozed(){ try{return new Set(JSON.parse(localStorage.getItem('weavn-brief-snooze')||'[]'));}catch(e){return new Set();} }
+function briefSnooze(key){ try{const s=briefSnoozed(); s.add(key); localStorage.setItem('weavn-brief-snooze',JSON.stringify([...s]));}catch(e){} }
+async function loadBrief(){
+  if(BRIEF_HIDDEN){ $('#brief').classList.add('hidden'); return; }
+  let b=null; try{const r=await api('/brief'); if(r.ok)b=await r.json();}catch(e){}
+  if(b) renderBrief(b); else $('#brief').classList.add('hidden');
+}
+function renderBrief(b){
+  const sn=briefSnoozed();
+  const drift=(b.drifting||[]).filter(i=>!sn.has(i.key)), plate=(b.plate||[]).filter(i=>!sn.has(i.key)), wins=(b.wins||[]);
+  if(!drift.length && !plate.length && !wins.length){ $('#brief').classList.add('hidden'); return; }
+  const row=(i,act)=>`<div class="brief-row" data-k="${esc(i.key)}" title="${esc(i.summary)}"><span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span><span class="brow-nm">${esc(i.summary||i.key)}</span>${i.idle_days?`<span class="brow-idle">idle ${i.idle_days}d</span>`:''}<span class="brow-k">${esc(i.key)}</span>${act||''}</div>`;
+  let h=`<div class="brief-h"><span class="mi">bolt</span><b>Catch me up</b><span class="brief-sub">${drift.length} drifting · ${plate.length} active · ${wins.length} shipped this week</span><button class="brief-x" title="Hide for now"><span class="mi">close</span></button></div>`;
+  if(drift.length) h+=`<div class="brief-sec"><div class="brief-lbl warn">Drifting — stalled 7+ days</div>`+drift.map(i=>row(i,`<button class="brow-go" data-act="block" data-k="${esc(i.key)}">Mark blocked</button><button class="brow-go2" data-act="snooze" data-k="${esc(i.key)}">Snooze</button>`)).join('')+`</div>`;
+  if(plate.length) h+=`<div class="brief-sec"><div class="brief-lbl">On your plate</div>`+plate.map(i=>row(i)).join('')+`</div>`;
+  if(wins.length) h+=`<div class="brief-sec"><div class="brief-lbl">✓ Shipped this week</div>`+wins.map(i=>row(i)).join('')+`</div>`;
+  $('#brief').innerHTML=h; $('#brief').classList.remove('hidden');
+  $('#brief .brief-x').onclick=()=>{ BRIEF_HIDDEN=true; $('#brief').classList.add('hidden'); };
+  $('#brief').querySelectorAll('.brief-row').forEach(r=>r.addEventListener('click',e=>{
+    const btn=e.target.closest('button'); const key=r.dataset.k;
+    if(btn){ e.stopPropagation(); if(btn.dataset.act==='snooze'){ briefSnooze(key); r.remove(); } else if(btn.dataset.act==='block'){ briefMarkBlocked(key); } return; }
+    openTreeIssue(key);
+  }));
+}
+async function briefMarkBlocked(key){
+  WB_TR_CACHE[key]=null; const t=(await wbTransitions(key)).find(x=>/block|imped|on hold|hold|wait/i.test(x));
+  if(!t){ alert('No “Blocked”/hold transition on '+key+' — opening it so you can pick.'); openTreeIssue(key); return; }
+  const r=await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:t})}); WB_TR_CACHE[key]=null;
+  if(!r.ok){ alert('Failed: '+await r.text()); return; }
+  wbToast(`Marked ${key} “${t}”`, null); loadBrief();
 }
 function savedFilters(){ return (LAYOUT&&LAYOUT.filters)||[]; }
 function filterMatch(it,f){

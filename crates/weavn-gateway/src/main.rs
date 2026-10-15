@@ -256,6 +256,7 @@ async fn main() {
         .route("/read", get(read))
         .route("/threads", get(threads_feed))
         .route("/stream", get(stream_feed))
+        .route("/brief", get(brief))
         .route("/epics", get(epics))
         .route("/children", get(children))
         .route("/issue", get(issue_detail))
@@ -1172,6 +1173,41 @@ fn one_line(body: &str, max: usize) -> String {
     } else {
         flat
     }
+}
+
+/// One issue in the "Catch me up" brief, with how long it's been idle.
+#[derive(Serialize)]
+struct BriefItem {
+    key: String,
+    summary: String,
+    status: String,
+    idle_days: i64,
+}
+#[derive(Serialize)]
+struct BriefResp {
+    drifting: Vec<BriefItem>,
+    plate: Vec<BriefItem>,
+    wins: Vec<BriefItem>,
+}
+/// The IC "Catch me up" brief — heuristic, computed from the user's own JIRA.
+async fn brief(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<BriefResp>, ApiError> {
+    let (creds, _author, _ws) = jira_session(&s, &headers)?;
+    let (drifting, plate, wins) = blocking(move || {
+        RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).my_brief()
+    })
+    .await?;
+    let now = unix_now();
+    let conv = |rows: Vec<weavn::jira::real::BriefRow>| -> Vec<BriefItem> {
+        rows.into_iter()
+            .map(|r| BriefItem {
+                idle_days: parse_jira_ts(&r.updated).map(|t| ((now - t) / 86400).max(0)).unwrap_or(0),
+                key: r.key,
+                summary: r.summary,
+                status: r.status,
+            })
+            .collect()
+    };
+    Ok(Json(BriefResp { drifting: conv(drifting), plate: conv(plate), wins: conv(wins) }))
 }
 
 /// One item in the unified temporal stream.

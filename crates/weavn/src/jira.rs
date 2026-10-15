@@ -506,6 +506,14 @@ pub mod real {
         pub comments: Vec<(String, String, String)>,
     }
 
+    /// One issue row in the "Catch me up" brief.
+    pub struct BriefRow {
+        pub key: String,
+        pub summary: String,
+        pub status: String,
+        pub updated: String, // ISO 8601
+    }
+
     /// An epic in the Projects→Epics→Stories browser.
     pub struct EpicRef {
         pub key: String,
@@ -729,6 +737,35 @@ pub mod real {
                     status: i["fields"]["status"]["name"].as_str().unwrap_or("").to_string(),
                 })
                 .collect())
+        }
+
+        /// One row of the "Catch me up" brief.
+        pub fn brief_rows(jql_issues: &[Value]) -> Vec<BriefRow> {
+            jql_issues
+                .iter()
+                .map(|i| BriefRow {
+                    key: i["key"].as_str().unwrap_or("").to_string(),
+                    summary: i["fields"]["summary"].as_str().unwrap_or("").to_string(),
+                    status: i["fields"]["status"]["name"].as_str().unwrap_or("").to_string(),
+                    updated: i["fields"]["updated"].as_str().unwrap_or("").to_string(),
+                })
+                .collect()
+        }
+
+        /// The IC "Catch me up" brief, computed from the user's own JIRA via JQL:
+        /// (drifting = stalled in-progress, plate = active recent, wins = shipped this week).
+        pub fn my_brief(&self) -> Result<(Vec<BriefRow>, Vec<BriefRow>, Vec<BriefRow>), String> {
+            let f = "summary,status,updated";
+            let drifting = Self::brief_rows(&self.search(
+                "assignee = currentUser() AND statusCategory = \"In Progress\" AND updated <= \"-7d\" ORDER BY updated ASC",
+                f, 15)?);
+            let plate = Self::brief_rows(&self.search(
+                "assignee = currentUser() AND statusCategory != Done AND updated >= \"-3d\" ORDER BY updated DESC",
+                f, 15)?);
+            let wins = Self::brief_rows(&self.search(
+                "assignee = currentUser() AND statusCategory = Done AND updated >= \"-7d\" ORDER BY updated DESC",
+                f, 15)?);
+            Ok((drifting, plate, wins))
         }
 
         /// Read-only: one issue's full content as a conversation (description + comments).
