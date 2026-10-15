@@ -124,6 +124,10 @@
   .att-file{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--fg);text-decoration:none}
   .att-file:hover{border-color:var(--accent)}
   .att-file .asz{color:var(--faint);font-size:11px}
+  .acts2{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .actbtn{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:7px;padding:4px 12px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .actbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .actbtn:disabled{opacity:.5;cursor:default}
   .rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;align-items:center}
   .rchip{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:1px 8px;font-size:12px;cursor:pointer;color:var(--muted);font-variant-numeric:tabular-nums}
   .rchip.mine{border-color:var(--accent);background:var(--accent-weak);color:var(--accent)}
@@ -429,6 +433,7 @@ async function loadChannel(){
         </span></div>
       <div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div>
       ${(t.attachments&&t.attachments.length)?`<div class="atts">${t.attachments.map(a=>a.is_image?`<a class="att-img" href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.filename)}" loading="lazy"></a>`:`<a class="att-file" href="${esc(a.url)}" target="_blank" rel="noopener">📄 ${esc(a.filename)} <span class="asz">${fmtSize(a.size)}</span></a>`).join('')}</div>`:''}
+      ${(t.actions&&t.actions.length)?`<div class="acts2">${t.actions.map(a=>`<button class="actbtn" data-issue="${k}" data-idx="${a.idx}">${esc(a.label)}</button>`).join('')}</div>`:''}
       ${t.replies.length?`<div class="reps">${t.replies.map(x=>`<div class="rep"><span class="ra">${esc(x.author)}</span>${x.from_jira?' <span class="fj">FROM JIRA</span>':''}${x.broadcast?' <span class="bc">↗ CHANNEL</span>':''}: ${mdInline(esc(x.body))}</div>`).join('')}</div>`:''}
       <div class="rx" data-issue="${k}">${(t.reactions||[]).map(x=>`<button class="rchip${x.mine?' mine':''}" data-code="${esc(x.shortcode)}" data-on="${x.mine?1:0}">${esc(x.shortcode)} ${x.count}</button>`).join('')}<button class="rxadd" title="Add reaction">＋</button></div>
       <div class="replybar"><input placeholder="Reply…" data-issue="${k}"><label class="bcl" title="Also surface this reply at the channel level"><input type="checkbox" class="bcx"> ↗ channel</label><button data-issue="${k}">Reply</button></div>
@@ -460,6 +465,12 @@ async function loadChannel(){
   stream.querySelectorAll('.rxadd').forEach(b=>b.addEventListener('click',()=>openRxPal(b.closest('.rx'))));
   markRead();
   stream.querySelectorAll('.morebtn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openActionsMenu(b);}));
+  stream.querySelectorAll('.actbtn').forEach(b=>b.addEventListener('click',async()=>{
+    b.disabled=true;
+    const r=await api('/action',{method:'POST',body:JSON.stringify({issue:b.dataset.issue,idx:+b.dataset.idx})});
+    if(!r.ok){alert('Action failed: '+await r.text());b.disabled=false;return;}
+    loadChannel();
+  }));
   unfurlThreads();
 }
 // auto-preview the first link in each conversation (cached per URL)
@@ -894,6 +905,7 @@ function renderAcl(ch, acl){
     html+='<div class="starthint">Public — everyone in the workspace can see and post here. Turn on to restrict access and manage members.</div>';
   }
   html+='<div class="csec">Incoming webhooks</div><div id="whsec" style="padding:0 2px"></div><div style="padding:6px 8px"><button id="whnew" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer">+ Create webhook</button></div>';
+  html+='<div class="csec">Bots (workspace)</div><div id="botsec" style="padding:0 2px"></div><div style="padding:6px 8px"><button id="botnew" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer">+ Create bot</button></div>';
   cl.innerHTML=html;
   $('#privck').addEventListener('change',async e=>{
     const rr=await api('/channel/private',{method:'POST',body:JSON.stringify({channel:ch,private:e.target.checked})});
@@ -923,7 +935,21 @@ function renderAcl(ch, acl){
     if(!rr.ok){alert('Failed: '+await rr.text());return;}
     loadWebhooks(ch);
   });
-  loadWebhooks(ch);
+  $('#botnew').addEventListener('click',async()=>{
+    const name=prompt('Bot name (e.g. "CI bot"):','CI bot'); if(name===null)return;
+    const rr=await api('/bots',{method:'POST',body:JSON.stringify({name})});
+    if(!rr.ok){alert('Failed: '+await rr.text());return;}
+    loadBots();
+  });
+  loadWebhooks(ch); loadBots();
+}
+async function loadBots(){
+  const el=$('#botsec'); if(!el)return;
+  const r=await api('/bots'); if(!r.ok){el.innerHTML='';return;}
+  const bots=await r.json();
+  el.innerHTML=bots.length?bots.map(b=>`<div class="crow"><span class="cn">🤖 ${esc(b.name)} <span style="color:var(--faint);font-size:11px">${esc(b.token)}</span></span><span class="ar" data-copy="${esc(b.token)}">copy</span><span class="ar" data-delbot="${esc(b.token)}">delete</span></div>`).join(''):'<div class="pmuted" style="padding:4px 8px;font-size:11px">None. A bot posts via POST /bot/post with header Authorization: Bearer &lt;token&gt; and {channel,text,actions?}.</div>';
+  el.querySelectorAll('.ar[data-copy]').forEach(b=>b.addEventListener('click',async()=>{const ok=await copyText(b.dataset.copy);if(!ok)prompt('Bot token:',b.dataset.copy);}));
+  el.querySelectorAll('.ar[data-delbot]').forEach(b=>b.addEventListener('click',async()=>{await api('/bots/delete',{method:'POST',body:JSON.stringify({token:b.dataset.delbot})});loadBots();}));
 }
 async function loadWebhooks(ch){
   const el=$('#whsec'); if(!el)return;

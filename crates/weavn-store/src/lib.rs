@@ -758,3 +758,58 @@ pub async fn dm_messages(pool: &PgPool, convo_id: i64) -> sqlx::Result<Vec<(Stri
     )
     .bind(convo_id).fetch_all(pool).await
 }
+
+// --- Tier 4: bot users ------------------------------------------------------
+
+pub async fn bot_create(pool: &PgPool, token: &str, ws: &str, name: &str, by: &str) -> sqlx::Result<()> {
+    sqlx::query("insert into bot (token, workspace, name, created_by) values ($1,$2,$3,$4)")
+        .bind(token).bind(ws).bind(name).bind(by).execute(pool).await?;
+    Ok(())
+}
+
+/// Resolve a bot token to (workspace, name).
+pub async fn bot_lookup(pool: &PgPool, token: &str) -> sqlx::Result<Option<(String, String)>> {
+    sqlx::query_as::<_, (String, String)>("select workspace, name from bot where token=$1")
+        .bind(token).fetch_optional(pool).await
+}
+
+pub async fn bot_list(pool: &PgPool, ws: &str) -> sqlx::Result<Vec<(String, String, String)>> {
+    sqlx::query_as::<_, (String, String, String)>("select token, name, created_by from bot where workspace=$1 order by created_at")
+        .bind(ws).fetch_all(pool).await
+}
+
+pub async fn bot_delete(pool: &PgPool, ws: &str, token: &str) -> sqlx::Result<()> {
+    sqlx::query("delete from bot where workspace=$1 and token=$2").bind(ws).bind(token).execute(pool).await?;
+    Ok(())
+}
+
+// --- Tier 4: interactive message actions ------------------------------------
+
+pub async fn actions_clear(pool: &PgPool, ws: &str, issue: &str) -> sqlx::Result<()> {
+    sqlx::query("delete from message_action where workspace=$1 and issue_key=$2").bind(ws).bind(issue).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn action_add(pool: &PgPool, ws: &str, issue: &str, idx: i32, label: &str, kind: &str, arg: &str) -> sqlx::Result<()> {
+    sqlx::query("insert into message_action (workspace, issue_key, idx, label, kind, arg) values ($1,$2,$3,$4,$5,$6)")
+        .bind(ws).bind(issue).bind(idx).bind(label).bind(kind).bind(arg).execute(pool).await?;
+    Ok(())
+}
+
+/// Action buttons for every conversation in a channel: (issue, idx, label).
+pub async fn actions_in_channel(pool: &PgPool, ws: &str, channel: &str, subtree: bool) -> sqlx::Result<Vec<(String, i32, String)>> {
+    let sql = format!(
+        "select a.issue_key, a.idx, a.label from message_action a \
+         where a.workspace = $1 and a.issue_key in ( \
+            select distinct issue_key from message where workspace = $1 and {pred} ) \
+         order by a.issue_key, a.idx",
+        pred = channel_pred(subtree)
+    );
+    sqlx::query_as::<_, (String, i32, String)>(&sql).bind(ws).bind(channel).fetch_all(pool).await
+}
+
+/// Resolve one action button to (kind, arg).
+pub async fn action_get(pool: &PgPool, ws: &str, issue: &str, idx: i32) -> sqlx::Result<Option<(String, String)>> {
+    sqlx::query_as::<_, (String, String)>("select kind, arg from message_action where workspace=$1 and issue_key=$2 and idx=$3")
+        .bind(ws).bind(issue).bind(idx).fetch_optional(pool).await
+}

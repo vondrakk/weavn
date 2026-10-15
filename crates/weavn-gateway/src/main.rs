@@ -192,6 +192,10 @@ async fn main() {
         .route("/dm/send", post(dm_send))
         .route("/dm/list", get(dm_list))
         .route("/dm/read", get(dm_read))
+        .route("/bots", get(bots_list).post(bots_create))
+        .route("/bots/delete", post(bots_delete))
+        .route("/bot/post", post(bot_post))
+        .route("/action", post(action))
         .route("/react", post(react))
         .route("/markread", post(mark_read))
         .route("/search", get(search))
@@ -507,6 +511,7 @@ struct ThreadResp {
     replies: Vec<ReplyResp>,
     reactions: Vec<ReactionResp>,
     attachments: Vec<AttachmentResp>,
+    actions: Vec<ActionResp>,
 }
 
 #[derive(Serialize)]
@@ -762,6 +767,7 @@ async fn read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ReadQ
                 replies: Vec::new(),
                 reactions: Vec::new(),
                 attachments: Vec::new(),
+                actions: Vec::new(),
             }
         });
         match row.parent_issue {
@@ -784,6 +790,12 @@ async fn read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ReadQ
         if let Some(t) = threads.get_mut(&issue) {
             let is_image = mime.starts_with("image/");
             t.attachments.push(AttachmentResp { url: format!("/attachment/{jira_id}"), jira_id, filename, mime, size, is_image });
+        }
+    }
+    // Interactive action buttons per conversation.
+    for (issue, idx, label) in weavn_store::actions_in_channel(&s.pool, &ws, &q.channel, q.subtree).await.map_err(db_err)? {
+        if let Some(t) = threads.get_mut(&issue) {
+            t.actions.push(ActionResp { idx, label });
         }
     }
     // Pinned conversations surface first; otherwise keep channel (creation) order.
@@ -1779,6 +1791,183 @@ async fn dm_read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<Dm
     Ok(Json(lines))
 }
 
+// --- Tier 4: bot users ------------------------------------------------------
+
+fn bearer(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|s| s.trim().to_string())
+}
+
+#[derive(Deserialize)]
+struct BotCreateReq {
+    #[serde(default)]
+    name: Option<String>,
+}
+
+#[derive(Serialize)]
+struct BotInfo {
+    token: String,
+    name: String,
+    created_by: String,
+}
+
+async fn bots_create(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<BotCreateReq>) -> Result<Json<BotInfo>, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    let name = r.name.unwrap_or_default();
+    let name = if name.trim().is_empty() { "bot".to_string() } else { name.trim().to_string() };
+    let token = gen_token();
+    weavn_store::bot_create(&s.pool, &token, &ws, &name, &user).await.map_err(db_err)?;
+    Ok(Json(BotInfo { token, name, created_by: user }))
+}
+
+async fn bots_list(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Vec<BotInfo>>, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    let list = weavn_store::bot_list(&s.pool, &ws).await.map_err(db_err)?.into_iter().map(|(token, name, created_by)| BotInfo { token, name, created_by }).collect();
+    Ok(Json(list))
+}
+
+#[derive(Deserialize)]
+struct BotDelReq {
+    token: String,
+}
+
+async fn bots_delete(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<BotDelReq>) -> Result<StatusCode, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    weavn_store::bot_delete(&s.pool, &ws, &r.token).await.map_err(db_err)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct BotPostReq {
+    #[serde(default)]
+    token: String,
+    channel: String,
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    actions: Vec<ActionDef>,
+}
+
+/// Bot-authenticated post: `Authorization: Bearer <token>` (or token in body).
+/// Posts to a channel as the bot via the service account. Rejects private channels.
+async fn bot_post(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<BotPostReq>) -> Result<Json<OutcomeResp>, ApiError> {
+    let token = bearer(&headers).unwrap_or_else(|| r.token.clone());
+    if token.is_empty() {
+        return Err((StatusCode::UNAUTHORIZED, "bot token required".to_string()));
+    }
+    let (ws, name) = weavn_store::bot_lookup(&s.pool, &token).await.map_err(db_err)?.ok_or((StatusCode::UNAUTHORIZED, "invalid bot token".to_string()))?;
+    let channel = r.channel.trim().to_string();
+    if channel.is_empty() {
+        return Err(bad_request("channel required".to_string()));
+    }
+    if let Some((true, _)) = weavn_store::channel_acl(&s.pool, &ws, &channel).await.map_err(db_err)? {
+        return Err((StatusCode::FORBIDDEN, "bots cannot post to a private channel".to_string()));
+    }
+    let text = r.text.trim().to_string();
+    if text.is_empty() {
+        return Err(bad_request("missing text".to_string()));
+    }
+    let project = s.project.clone();
+    let slug = channel_slug(&channel);
+    let summary = weavn::proto::summarize(&text, 80);
+    let (b2, sum2) = (text.clone(), summary.clone());
+    let (key, status) = blocking(move || {
+        let mut be = RealBackend::from_env()?;
+        let adf = weavn::format::mrkdwn_to_adf(&b2);
+        let key = be.create_issue(&project, &slug, &sum2, &b2, &adf).map(|ci| ci.key)?;
+        let st = be.issue_status(&key).unwrap_or_default();
+        Ok::<_, String>((key, st))
+    })
+    .await?;
+    weavn_store::message_insert(&s.pool, &ws, &channel, &key, None, &name, &text, false, false).await.map_err(db_err)?;
+    weavn_store::status_set(&s.pool, &ws, &key, &status).await.map_err(db_err)?;
+    save_actions(&s, &ws, &key, &r.actions).await?;
+    notify_for_message(&s, &ws, &name, "", &channel, &key, &text, &[]).await;
+    s.hub.publish(&ws, event_message(&channel));
+    Ok(Json(OutcomeResp { kind: "bot", issue: key, comment: None }))
+}
+
+// --- Tier 4: interactive messages (action buttons) -------------------------
+
+#[derive(Deserialize, Clone)]
+struct ActionDef {
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    kind: String,
+    #[serde(default)]
+    arg: String,
+}
+
+#[derive(Serialize)]
+struct ActionResp {
+    idx: i32,
+    label: String,
+}
+
+/// Persist action buttons posted with a message (allowlisted kinds only).
+async fn save_actions(s: &AppState, ws: &str, issue: &str, defs: &[ActionDef]) -> Result<(), ApiError> {
+    if defs.is_empty() {
+        return Ok(());
+    }
+    weavn_store::actions_clear(&s.pool, ws, issue).await.map_err(db_err)?;
+    let mut idx = 0i32;
+    for d in defs {
+        let kind = d.kind.trim();
+        if !matches!(kind, "transition" | "reply" | "ack") {
+            continue; // allowlist — ignore anything else
+        }
+        let label = if d.text.trim().is_empty() { kind } else { d.text.trim() };
+        weavn_store::action_add(&s.pool, ws, issue, idx, label, kind, d.arg.trim()).await.map_err(db_err)?;
+        idx += 1;
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct ActionReq {
+    issue: String,
+    idx: i32,
+}
+
+/// Click an action button — runs the allowlisted action as the clicking user.
+async fn action(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<ActionReq>) -> Result<Json<serde_json::Value>, ApiError> {
+    let (creds, author, ws) = jira_session(&s, &headers)?;
+    let me_acc = subject(&s, &headers)?;
+    let (kind, arg) = weavn_store::action_get(&s.pool, &ws, &r.issue, r.idx).await.map_err(db_err)?.ok_or((StatusCode::NOT_FOUND, "no such action".to_string()))?;
+    let channel = weavn_store::channel_of_issue(&s.pool, &ws, &r.issue).await.map_err(db_err)?.ok_or_else(|| bad_request(format!("unknown issue {}", r.issue)))?;
+    require_channel_access(&s, &ws, &me_acc, &channel).await?;
+    match kind.as_str() {
+        "transition" => {
+            let (c, issue2, to2) = (creds.clone(), r.issue.clone(), arg.clone());
+            let status = blocking(move || {
+                let b = RealBackend::from_parts(&c.base, c.email.as_deref(), &c.token, c.bearer);
+                b.transition_to(&issue2, &to2)?;
+                Ok::<_, String>(b.issue_status(&issue2).unwrap_or_else(|_| to2.clone()))
+            })
+            .await?;
+            weavn_store::status_set(&s.pool, &ws, &r.issue, &status).await.map_err(db_err)?;
+        }
+        "reply" | "ack" => {
+            let body = if kind == "ack" { format!("✓ {author} acknowledged") } else { arg.clone() };
+            let (c, issue2, author2, body2) = (creds.clone(), r.issue.clone(), author.clone(), body.clone());
+            blocking(move || {
+                let mut b = RealBackend::from_parts(&c.base, c.email.as_deref(), &c.token, c.bearer);
+                let adf = weavn::format::mrkdwn_to_adf(&body2);
+                b.add_comment(&issue2, &author2, &body2, &adf).map(|_| ())
+            })
+            .await?;
+            weavn_store::message_insert(&s.pool, &ws, &channel, &r.issue, Some(&r.issue), &author, &body, false, false).await.map_err(db_err)?;
+        }
+        _ => return Err(bad_request("unknown action kind".to_string())),
+    }
+    s.hub.publish(&ws, event_message(&channel));
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // --- Tier 3: incoming webhooks ----------------------------------------------
 
 fn gen_token() -> String {
@@ -1853,6 +2042,8 @@ struct HookBody {
     text: String,
     #[serde(default)]
     body: String,
+    #[serde(default)]
+    actions: Vec<ActionDef>,
 }
 
 /// Unauthenticated incoming webhook: the secret token in the URL is the auth.
@@ -1880,6 +2071,7 @@ async fn hook(State(s): State<Shared>, Path(token): Path<String>, Json(b): Json<
     .await?;
     weavn_store::message_insert(&s.pool, &ws, &channel, &key, None, &label, &text, false, false).await.map_err(db_err)?;
     weavn_store::status_set(&s.pool, &ws, &key, &status).await.map_err(db_err)?;
+    save_actions(&s, &ws, &key, &b.actions).await?;
     notify_for_message(&s, &ws, &label, "", &channel, &key, &text, &[]).await;
     s.hub.publish(&ws, event_message(&channel));
     Ok(Json(OutcomeResp { kind: "webhook", issue: key, comment: None }))
