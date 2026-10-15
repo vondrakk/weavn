@@ -89,18 +89,18 @@ chat clone:
 | File uploads / inline media | Native JIRA attachments + auth download proxy | 3 | ✅ |
 | Message search (full-text) | Projection FTS (tsvector + GIN); JQL fallback | 3 | ✅ |
 | Private channels | Gateway-enforced membership allowlist (ACL) | 3 | ✅ |
-| SSO (Okta/OIDC) + JIRA-token login | Gateway OIDC; JIRA identity = Weavn identity | 3 | ✅ (JIRA login), ◑ (Okta) |
-| SCIM provisioning / deprovisioning | Standard SCIM → JIRA account mapping | 3 | ○ |
+| SSO (Okta/OIDC) + JIRA-token login | Gateway OIDC; JIRA identity = Weavn identity | 3 | ✅ JIRA login · ◑ Okta (needs IdP — see INTEGRATIONS_BACKLOG) |
+| SCIM provisioning / deprovisioning | Standard SCIM → JIRA account mapping | 3 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
 | Permissions & roles | Channel membership ACL (Weavn) + JIRA project roles | 3 | ✅ (channel ACL) |
 | Notifications (in-app, email, keywords) | In-app + keyword alerts, live via hub (email = infra) | 3 | ✅ (in-app) |
 | Scheduled messages / send later | In-process scheduler (sends via live session) | 3 | ✅ |
 | Reminders (`/remind`, Slackbot) | Same scheduler → a self-notification | 3 | ✅ |
 | Link unfurling / previews | Server OG fetcher with SSRF guards + client cache | 3 | ✅ |
-| Incoming / outgoing webhooks | Gateway webhook endpoints | 3 | ✅ (incoming) |
+| Incoming / outgoing webhooks | Gateway webhook endpoints | 3 | ✅ incoming · ○ outgoing (spec'd — INTEGRATIONS_BACKLOG) |
 | Retention & eDiscovery / export | Channel transcript export (MD/JSON) + **JIRA retention** | 3 | ✅ (export) |
 | Shortcuts (global / message actions) | Client + gateway actions on issues | 3 | ✅ (message actions) |
 | Sprints as a first-class concept | List board sprints + assign a conversation (Agile API) | 3 | ✅ |
-| Guest accounts | Scoped JIRA accounts / restricted sessions | 3 | ○ |
+| Guest accounts | Scoped JIRA accounts / restricted sessions | 3 | ○ (spec'd — INTEGRATIONS_BACKLOG) |
 
 ### Tier 4 — Hard (a whole new subsystem)
 
