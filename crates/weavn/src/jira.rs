@@ -524,6 +524,14 @@ pub mod real {
         pub nudge: Vec<BriefRow>,
     }
 
+    /// A team standup rollup for one project.
+    pub struct TeamStandup {
+        pub shipped: Vec<BriefRow>,
+        pub active: Vec<BriefRow>,
+        pub stalled: Vec<BriefRow>,
+        pub unassigned: Vec<BriefRow>,
+    }
+
     /// An epic in the Projects→Epics→Stories browser.
     pub struct EpicRef {
         pub key: String,
@@ -782,6 +790,22 @@ pub mod real {
                 // I reported it, someone else owns it, stalled → nudge?
                 nudge: Self::brief_rows(&self.search(
                     "reporter = currentUser() AND assignee is not EMPTY AND assignee != currentUser() AND statusCategory = \"In Progress\" AND updated <= \"-7d\" ORDER BY updated ASC", f, 10)?),
+            })
+        }
+
+        /// A team standup rollup for a project (team-wide, not just the caller).
+        pub fn team_standup(&self, project: &str) -> Result<TeamStandup, String> {
+            let f = "summary,status,updated,assignee";
+            let p = project;
+            Ok(TeamStandup {
+                shipped: Self::brief_rows(&self.search(
+                    &format!("project = \"{p}\" AND statusCategory = Done AND updated >= \"-1d\" ORDER BY assignee ASC"), f, 40)?),
+                active: Self::brief_rows(&self.search(
+                    &format!("project = \"{p}\" AND statusCategory = \"In Progress\" ORDER BY assignee ASC"), f, 60)?),
+                stalled: Self::brief_rows(&self.search(
+                    &format!("project = \"{p}\" AND statusCategory = \"In Progress\" AND updated <= \"-5d\" ORDER BY updated ASC"), f, 30)?),
+                unassigned: Self::brief_rows(&self.search(
+                    &format!("project = \"{p}\" AND assignee is EMPTY AND statusCategory != Done ORDER BY updated DESC"), f, 30)?),
             })
         }
 

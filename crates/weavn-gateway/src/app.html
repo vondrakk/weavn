@@ -270,6 +270,18 @@
   .feedhead{padding:12px 18px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
   .feedhead .fh-sub{font-weight:400;color:var(--muted);font-size:12px}
   .feedbody{flex:1;overflow:auto;padding:8px 0}
+  /* team standup */
+  .su-lbl{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:10px 18px 3px}
+  .su-lbl.warn{color:#c8921a}
+  .su-person{padding:2px 18px 4px}
+  .su-name{font-weight:700;font-size:13px;margin:5px 0 1px;display:flex;align-items:center;gap:7px}
+  .su-name .av{width:22px;height:22px;border-radius:6px;font-size:10px}
+  .su-item{display:flex;align-items:center;gap:8px;padding:3px 8px 3px 31px;font-size:13px;cursor:pointer;border-radius:6px}
+  .su-item:hover{background:var(--accent-weak)}
+  .su-item .si-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .su-item .si-k{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .su-item .si-idle{color:#c8921a;font-size:11px;font-weight:600}
+  .su-flat .su-item{padding-left:18px}
   /* "Catch me up" brief — ambient, confirmable IC digest atop the stream */
   .brief{border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--accent) 4%,var(--surface));padding:10px 16px 12px;flex:none}
   .brief.hidden{display:none}
@@ -534,6 +546,7 @@
         <button class="viewtab" data-v="updates" title="The open board's message river"><span class="mi">forum</span> Channel</button>
         <button class="viewtab" data-v="threads" title="Every threaded conversation across your boards"><span class="mi">comment</span> Threads</button>
         <button class="viewtab" data-v="activity" title="Mentions &amp; alerts across your boards"><span class="mi">notifications</span> Activity<span class="vb" id="actbadge" style="display:none"></span></button>
+        <button class="viewtab" data-v="standup" title="Auto-generated team standup for a board"><span class="mi">groups</span> Standup</button>
       </div>
       <div class="feedview hidden" id="streamview">
         <div class="streamhead">
@@ -599,6 +612,16 @@
       <div class="feedview hidden" id="activityview">
         <div class="feedhead"><span class="mi">notifications</span> Activity <span class="fh-sub">— mentions &amp; alerts across your boards</span></div>
         <div class="feedbody" id="activityfeed"></div>
+      </div>
+      <div class="feedview hidden" id="standupview">
+        <div class="streamhead">
+          <span class="mi" style="color:var(--accent)">groups</span><b style="font-size:14px">Team standup</b>
+          <select id="standupproj" title="Board"><option value="">Pick a board…</option></select>
+          <span style="flex:1"></span>
+          <button id="standuppost" class="fgear" title="Post this standup to the board" style="padding:6px 11px"><span class="mi">send</span> Post to board</button>
+          <button id="standuprefresh" class="fgear" title="Refresh"><span class="mi">refresh</span></button>
+        </div>
+        <div class="feedbody" id="standupbody"><div class="feedempty">Pick a board to generate its standup.</div></div>
       </div>
     </section>
     <aside class="thread hidden" id="threadpane">
@@ -1195,12 +1218,63 @@ function setView(v){
   $('#updatesview').classList.toggle('hidden',v!=='updates');
   $('#threadsview').classList.toggle('hidden',v!=='threads');
   $('#activityview').classList.toggle('hidden',v!=='activity');
+  $('#standupview').classList.toggle('hidden',v!=='standup');
   document.querySelectorAll('.viewtab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   if(v!=='updates') closeThread();
   if(v==='stream') loadStream();
   else if(v==='threads') loadThreadsFeed();
   else if(v==='activity') loadActivityFeed();
+  else if(v==='standup') initStandup();
 }
+// --- Team auto-standup: the same signal engine, team-wide, per board -----------
+let STANDUP_PROJ='', STANDUP_DATA=null;
+async function initStandup(){
+  await ensureProjects();
+  const sel=$('#standupproj'); const cur=STANDUP_PROJ||sel.value;
+  sel.innerHTML='<option value="">Pick a board…</option>'+PROJECTS.slice().sort((a,b)=>(a.name||a.key).localeCompare(b.name||b.key)).map(p=>`<option value="${esc(p.key)}">${esc(p.name||p.key)} (${esc(p.key)})</option>`).join('');
+  if(cur){ sel.value=cur; STANDUP_PROJ=cur; loadStandup(); }
+}
+async function loadStandup(){
+  if(!STANDUP_PROJ){ $('#standupbody').innerHTML='<div class="feedempty">Pick a board to generate its standup.</div>'; return; }
+  $('#standupbody').innerHTML='<div class="feedempty"><span class="spin"></span>Generating standup…</div>';
+  try{const r=await api('/standup?project='+encodeURIComponent(STANDUP_PROJ)); if(!r.ok){$('#standupbody').innerHTML='<div class="feedempty">'+esc(await r.text())+'</div>';return;} STANDUP_DATA=await r.json();}catch(e){$('#standupbody').innerHTML='<div class="feedempty">Network error.</div>';return;}
+  renderStandup(STANDUP_DATA);
+}
+function groupByAssignee(items){ const g={}; (items||[]).forEach(i=>{const a=i.assignee||'Unassigned'; (g[a]=g[a]||[]).push(i);}); return g; }
+function suItem(i,showIdle){ return `<div class="su-item" data-k="${esc(i.key)}" title="${esc(i.summary)}"><span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span><span class="si-nm">${esc(i.summary||i.key)}</span>${showIdle&&i.idle_days?`<span class="si-idle">idle ${i.idle_days}d</span>`:''}<span class="si-k">${esc(i.key)}</span></div>`; }
+function suGroup(items,showIdle){ const g=groupByAssignee(items); return Object.keys(g).sort().map(name=>`<div class="su-person"><div class="su-name"><span class="av">${esc(initials(name))}</span>${esc(name)}</div>${g[name].map(i=>suItem(i,showIdle)).join('')}</div>`).join(''); }
+function renderStandup(d){
+  const el=$('#standupbody');
+  const total=(d.shipped||[]).length+(d.active||[]).length+(d.stalled||[]).length+(d.unassigned||[]).length;
+  if(!total){ el.innerHTML='<div class="feedempty">Nothing active on this board right now.</div>'; return; }
+  let h='';
+  if((d.shipped||[]).length) h+=`<div class="su-lbl">Shipped since yesterday</div>`+suGroup(d.shipped,false);
+  if((d.active||[]).length) h+=`<div class="su-lbl">In progress</div>`+suGroup(d.active,false);
+  if((d.stalled||[]).length) h+=`<div class="su-lbl warn">Needs attention — stalled 5+ days</div><div class="su-flat">`+d.stalled.map(i=>suItem({...i,summary:(i.summary||i.key)+(i.assignee?' · '+i.assignee:'')},true)).join('')+`</div>`;
+  if((d.unassigned||[]).length) h+=`<div class="su-lbl">Unassigned</div><div class="su-flat">`+d.unassigned.map(i=>suItem(i,false)).join('')+`</div>`;
+  el.innerHTML=h;
+  el.querySelectorAll('.su-item').forEach(x=>x.addEventListener('click',()=>openTreeIssue(x.dataset.k)));
+}
+function standupMarkdown(d){
+  const pn=projName(STANDUP_PROJ)||STANDUP_PROJ;
+  const line=i=>`• ${i.key} ${(i.summary||'').slice(0,80)}`;
+  const grp=items=>{const g=groupByAssignee(items);return Object.keys(g).sort().map(n=>`*${n}*\n`+g[n].map(line).join('\n')).join('\n');};
+  let t=`📋 *${pn} standup — ${new Date().toLocaleDateString()}*\n`;
+  if((d.shipped||[]).length) t+=`\n*Shipped since yesterday*\n`+grp(d.shipped)+`\n`;
+  if((d.active||[]).length) t+=`\n*In progress*\n`+grp(d.active)+`\n`;
+  if((d.stalled||[]).length) t+=`\n*⚠ Needs attention (stalled 5+ days)*\n`+d.stalled.map(i=>`• ${i.key} ${(i.summary||'').slice(0,70)} — idle ${i.idle_days}d${i.assignee?' ('+i.assignee+')':''}`).join('\n')+`\n`;
+  if((d.unassigned||[]).length) t+=`\n*Unassigned*\n`+d.unassigned.map(line).join('\n')+`\n`;
+  return t.trim();
+}
+$('#standupproj').addEventListener('change',e=>{ STANDUP_PROJ=e.target.value; loadStandup(); });
+$('#standuprefresh').addEventListener('click',loadStandup);
+$('#standuppost').addEventListener('click',async()=>{
+  if(!STANDUP_DATA||!STANDUP_PROJ){ alert('Pick a board first.'); return; }
+  if(!confirm('Post this standup to '+(projName(STANDUP_PROJ)||STANDUP_PROJ)+'? It becomes a JIRA issue on the board.')) return;
+  const r=await api('/send',{method:'POST',body:JSON.stringify({channel:STANDUP_PROJ,body:standupMarkdown(STANDUP_DATA),mentions:[]})});
+  if(!r.ok){ alert('Post failed: '+await r.text()); return; }
+  wbToast('Standup posted to '+(projName(STANDUP_PROJ)||STANDUP_PROJ), null);
+});
 document.querySelectorAll('.viewtab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.v)));
 
 // --- The unified temporal stream ("For You" by default) -------------------------

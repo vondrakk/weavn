@@ -257,6 +257,7 @@ async fn main() {
         .route("/threads", get(threads_feed))
         .route("/stream", get(stream_feed))
         .route("/brief", get(brief))
+        .route("/standup", get(standup))
         .route("/epics", get(epics))
         .route("/children", get(children))
         .route("/issue", get(issue_detail))
@@ -1217,6 +1218,50 @@ async fn brief(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Brief
         wins: conv(b.wins),
         claim: conv(b.claim),
         nudge: conv(b.nudge),
+    }))
+}
+
+/// One issue in a team standup.
+#[derive(Serialize)]
+struct StandupItem {
+    key: String,
+    summary: String,
+    status: String,
+    assignee: String,
+    idle_days: i64,
+}
+#[derive(Serialize)]
+struct StandupResp {
+    shipped: Vec<StandupItem>,
+    active: Vec<StandupItem>,
+    stalled: Vec<StandupItem>,
+    unassigned: Vec<StandupItem>,
+}
+/// Team auto-standup for a project — the same signal engine, team-wide.
+async fn standup(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ProjQuery>) -> Result<Json<StandupResp>, ApiError> {
+    let (creds, _author, _ws) = jira_session(&s, &headers)?;
+    let proj = q.project.clone();
+    let st = blocking(move || {
+        RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).team_standup(&proj)
+    })
+    .await?;
+    let now = unix_now();
+    let conv = |rows: Vec<weavn::jira::real::BriefRow>| -> Vec<StandupItem> {
+        rows.into_iter()
+            .map(|r| StandupItem {
+                idle_days: parse_jira_ts(&r.updated).map(|t| ((now - t) / 86400).max(0)).unwrap_or(0),
+                key: r.key,
+                summary: r.summary,
+                status: r.status,
+                assignee: r.assignee,
+            })
+            .collect()
+    };
+    Ok(Json(StandupResp {
+        shipped: conv(st.shipped),
+        active: conv(st.active),
+        stalled: conv(st.stalled),
+        unassigned: conv(st.unassigned),
     }))
 }
 
