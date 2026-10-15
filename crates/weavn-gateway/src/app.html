@@ -6,13 +6,39 @@
 <title>weavN</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=swap">
 <style>
+  /* Themes. Default is LIGHT (:root). Explicit themes set via data-theme on <html>;
+     palettes adapted from open-source schemes (Night-Blue, Nord, Solarized by Ethan
+     Schoonover, Catppuccin). Sidebar can be tinted independently via --rail-fg/-muted. */
   :root{
+    --font:"IBM Plex Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+    --side-w:300px;--thread-w:380px;
+    /* weavN Light (default) */
     --bg:#eef1f6;--surface:#fff;--rail:#f4f1ec;--border:#e2e6ec;--fg:#0F172A;
     --muted:#6a7686;--faint:#93a0b2;--accent:#4F46E5;--accent-weak:rgba(79,70,229,.12);
-    --thread:#06B6D4;--ok:#1f9d6b;--font:"IBM Plex Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+    --thread:#06B6D4;--ok:#1f9d6b;--rail-fg:var(--fg);--rail-muted:var(--muted);
     color-scheme:light;
   }
-  @media(prefers-color-scheme:dark){:root{
+  :root[data-theme="dark"]{ /* weavN Night-Blue */
+    --bg:#0B1120;--surface:#131d33;--rail:#0F172A;--border:#28323f;--fg:#E7ECF5;
+    --muted:#93a0b2;--faint:#6b7889;--accent:#8b84ff;--accent-weak:rgba(139,132,255,.18);--thread:#22c6e0;--ok:#34c089;color-scheme:dark;}
+  :root[data-theme="nord"]{ /* Nord (arcticicestudio) */
+    --bg:#2E3440;--surface:#3B4252;--rail:#2b303b;--border:#434C5E;--fg:#ECEFF4;
+    --muted:#AEB8CC;--faint:#6b7793;--accent:#88C0D0;--accent-weak:rgba(136,192,208,.18);--thread:#81A1C1;--ok:#A3BE8C;color-scheme:dark;}
+  :root[data-theme="sol-dark"]{ /* Solarized Dark */
+    --bg:#002b36;--surface:#073642;--rail:#042f3b;--border:#0d4b5a;--fg:#93a1a1;
+    --muted:#839496;--faint:#586e75;--accent:#268bd2;--accent-weak:rgba(38,139,210,.18);--thread:#2aa198;--ok:#859900;color-scheme:dark;}
+  :root[data-theme="sol-light"]{ /* Solarized Light */
+    --bg:#f3eeda;--surface:#fdf6e3;--rail:#eee8d5;--border:#e3dcc3;--fg:#586e75;
+    --muted:#657b83;--faint:#93a1a1;--accent:#268bd2;--accent-weak:rgba(38,139,210,.13);--thread:#2aa198;--ok:#859900;color-scheme:light;}
+  :root[data-theme="latte"]{ /* Catppuccin Latte (light) */
+    --bg:#eff1f5;--surface:#ffffff;--rail:#e6e9ef;--border:#ccd0da;--fg:#4c4f69;
+    --muted:#6c6f85;--faint:#9ca0b0;--accent:#8839ef;--accent-weak:rgba(136,57,239,.12);--thread:#209fb5;--ok:#40a02b;color-scheme:light;}
+  :root[data-theme="aubergine"]{ /* Slack-style: light content, tinted sidebar */
+    --bg:#f8f8fa;--surface:#ffffff;--rail:#3F0E40;--border:#e6e6ea;--fg:#1d1c1d;
+    --muted:#616061;--faint:#9a9a9c;--accent:#1164A3;--accent-weak:rgba(18,100,163,.12);--thread:#007a5a;--ok:#2eb67d;
+    --rail-fg:#f4ecf4;--rail-muted:#cbb6cc;color-scheme:light;}
+  /* "Auto" follows the OS. */
+  @media(prefers-color-scheme:dark){:root[data-theme="auto"]{
     --bg:#0B1120;--surface:#131d33;--rail:#0F172A;--border:#28323f;--fg:#E7ECF5;
     --muted:#93a0b2;--faint:#6b7889;--accent:#8b84ff;--accent-weak:rgba(139,132,255,.18);--thread:#22c6e0;--ok:#34c089;color-scheme:dark;}}
   *{box-sizing:border-box}html,body{height:100%}
@@ -50,9 +76,18 @@
   .meav{width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:11px}
   .who{color:var(--muted);font-size:13px}
   .lo{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:7px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12px}
-  .main{display:grid;grid-template-columns:258px minmax(0,1fr);min-height:0;height:100%}
-  .main.tp{grid-template-columns:258px minmax(0,1fr) 360px}
-  .side{background:var(--rail);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .main{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);min-height:0;height:100%}
+  .main.tp{grid-template-columns:var(--side-w) minmax(0,1fr) var(--thread-w)}
+  /* drag handles to resize panes (Slack-style) */
+  .resizer{position:absolute;top:0;bottom:0;width:7px;cursor:col-resize;z-index:8}
+  .resizer:hover,.resizer.active{background:var(--accent-weak)}
+  .resizer.rs-side{right:-4px}
+  .resizer.rs-thread{left:-4px}
+  body.resizing{cursor:col-resize;user-select:none}
+  .side{background:var(--rail);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;overflow:hidden;position:relative;color:var(--rail-fg)}
+  /* sidebar text follows the rail tokens (= fg/muted except on tinted-sidebar themes) */
+  .side .crow,.side .side-ws{color:var(--rail-fg)}
+  .side .snav,.side .csec,.side .csec.board,.side .sechead,.side .side-chead,.side .snm,.side .cc,.side .chev,.side .smenu,.side .crow .cboard,.side .ungrp-label{color:var(--rail-muted)}
   .side-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;border-bottom:1px solid var(--border)}
   .side-ws{font-weight:700;font-size:15px}
   .side-nav{display:flex;flex-direction:column;gap:1px;padding:6px}
@@ -68,7 +103,7 @@
   .side-chans .crow.active{background:var(--accent-weak)}
   .side-chans .crow.active .cn{color:var(--accent);font-weight:600}
   .center{display:flex;flex-direction:column;min-width:0;min-height:0}
-  .thread{display:flex;flex-direction:column;min-width:0;min-height:0;border-left:1px solid var(--border);background:var(--surface)}
+  .thread{display:flex;flex-direction:column;min-width:0;min-height:0;border-left:1px solid var(--border);background:var(--surface);position:relative}
   .thread.hidden{display:none}
   .thead{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600}
   .thead .sp{flex:1}
@@ -375,12 +410,14 @@
     <button class="statuschip" id="statuschip" title="Set a status"><span class="mi">add</span> Set status</button>
     <button class="kk" id="clockbtn" title="Clock in / out"><span class="mi">timer</span> Clock in</button>
     <button class="kk" id="bellbtn" title="Notifications"><span class="mi">notifications</span><span id="bellbadge" class="nbadge" style="display:none"></span></button>
+    <button class="kk" id="themebtn" title="Theme"><span class="mi">palette</span></button>
     <button class="kk" id="dndbtn" title="Do not disturb">DND</button>
     <div class="me"><span class="meav" id="meav"></span><span class="who" id="who"></span></div>
     <button class="lo" id="logout">Sign out</button>
   </div>
   <div class="main">
     <aside class="side">
+      <div class="resizer rs-side" id="rs-side" title="Drag to resize"></div>
       <div class="side-top"><span class="side-ws wm">weav<span class="n">N</span></span><button class="kk" id="switchbtn" title="Quick switch (⌘K)">⌘K</button></div>
       <div class="side-nav">
         <button class="snav" id="savedbtn"><span class="mi">bookmark</span> Saved items</button>
@@ -446,6 +483,7 @@
       </div>
     </section>
     <aside class="thread hidden" id="threadpane">
+      <div class="resizer rs-thread" id="rs-thread" title="Drag to resize"></div>
       <div class="thead"><b>Thread</b><span class="sp"></span><button class="kk" id="threadclose" title="Close thread"><span class="mi">close</span></button></div>
       <div class="tbody" id="threadbody"></div>
       <div class="tcompose">
@@ -909,6 +947,50 @@ $('#density').addEventListener('click',()=>{
   try{localStorage.setItem('weavn-density',c?'compact':'cozy');}catch(e){}
   const b=$('#density').querySelector('.mi'); b.textContent=c?'density_large':'density_small';
 });
+
+// --- Themes (default light) — palettes from open-source schemes; see <style> ----
+const THEMES=[
+  {id:'light',name:'weavN Light'},
+  {id:'dark',name:'weavN Night-Blue'},
+  {id:'aubergine',name:'Aubergine (Slack-style)'},
+  {id:'latte',name:'Catppuccin Latte'},
+  {id:'nord',name:'Nord'},
+  {id:'sol-light',name:'Solarized Light'},
+  {id:'sol-dark',name:'Solarized Dark'},
+  {id:'auto',name:'Match system'},
+];
+function getTheme(){ let t='light'; try{t=localStorage.getItem('weavn-theme')||'light';}catch(e){} return THEMES.some(x=>x.id===t)?t:'light'; }
+function applyTheme(){ document.documentElement.setAttribute('data-theme',getTheme()); }
+function openThemeMenu(){
+  document.querySelectorAll('.stmenu').forEach(m=>m.remove());
+  const cur=getTheme();
+  const menu=document.createElement('div'); menu.className='stmenu';
+  menu.innerHTML='<div class="sh">Theme</div>'+THEMES.map(t=>`<div class="si" data-t="${t.id}">${t.id===cur?'✓ ':'&nbsp;&nbsp;&nbsp;'}${esc(t.name)}</div>`).join('');
+  document.body.appendChild(menu);
+  const bb=$('#themebtn').getBoundingClientRect(); menu.style.left=Math.min(bb.left,window.innerWidth-230)+'px'; menu.style.top=(bb.bottom+4)+'px';
+  menu.querySelectorAll('.si[data-t]').forEach(el=>el.addEventListener('click',()=>{ menu.remove(); try{localStorage.setItem('weavn-theme',el.dataset.t);}catch(e){} applyTheme(); }));
+  setTimeout(()=>document.addEventListener('click',function off(e){ if(!menu.contains(e.target)&&!e.target.closest('#themebtn')){menu.remove();document.removeEventListener('click',off);} }),0);
+}
+$('#themebtn').addEventListener('click',openThemeMenu);
+
+// --- Resizable panes (drag the thin handles between panes); widths persist -------
+function applyPaneWidths(){ try{ const main=$('.main'); const sw=localStorage.getItem('weavn-sidew'), tw=localStorage.getItem('weavn-threadw'); if(sw)main.style.setProperty('--side-w',sw); if(tw)main.style.setProperty('--thread-w',tw); }catch(e){} }
+function setupResizers(){
+  const main=$('.main');
+  const start=(which,e)=>{
+    e.preventDefault(); document.body.classList.add('resizing'); e.target.classList.add('active');
+    const move=ev=>{
+      const x=ev.clientX, rect=main.getBoundingClientRect();
+      if(which==='side'){ let w=Math.max(200,Math.min(x-rect.left,Math.min(540,rect.width-360))); main.style.setProperty('--side-w',w+'px'); }
+      else{ let w=Math.max(280,Math.min(rect.right-x,Math.min(680,rect.width-360))); main.style.setProperty('--thread-w',w+'px'); }
+    };
+    const up=()=>{ document.body.classList.remove('resizing'); e.target.classList.remove('active'); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up);
+      try{ localStorage.setItem('weavn-sidew',getComputedStyle(main).getPropertyValue('--side-w').trim()); localStorage.setItem('weavn-threadw',getComputedStyle(main).getPropertyValue('--thread-w').trim()); }catch(_){} };
+    document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+  };
+  const rs=$('#rs-side'); if(rs) rs.addEventListener('pointerdown',e=>start('side',e));
+  const rt=$('#rs-thread'); if(rt) rt.addEventListener('pointerdown',e=>start('thread',e));
+}
 
 // --- views: Updates (the board river) | Threads | Activity (both workspace-wide) ---
 let VIEW='updates';
@@ -1618,7 +1700,7 @@ function renderDmLines(lines){
 }
 async function reloadDM(){ if(!CURDM||CURDM.id==null)return; const r=await api('/dm/read?convo='+CURDM.id); if(r.ok) renderDmLines(await r.json()); }
 
-(async()=>{await loadAuthConfig();configureLogin();const s=await me();if(s)showApp(s);else showLogin();})();
+(async()=>{applyTheme();applyPaneWidths();setupResizers();await loadAuthConfig();configureLogin();const s=await me();if(s)showApp(s);else showLogin();})();
 </script>
 </body>
 </html>
