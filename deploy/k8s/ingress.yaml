@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: weavn-web
+  namespace: weavn
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [weavn.io, www.weavn.io]
+      secretName: weavn-web-tls
+  # Only the canonical apex host is declared. The from-to-www-redirect annotation
+  # auto-generates the www.weavn.io server block that 308-redirects to the apex
+  # (its TLS comes from the www SAN in the cert below). Declaring www as its own
+  # rule here too collides with that generated redirect and flaps the apex SNI.
+  rules:
+    - host: weavn.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: weavn-web, port: { number: 80 } } }

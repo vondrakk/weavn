@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>weaveN</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#eef1f6;--surface:#fff;--rail:#f4f1ec;--border:#e2e6ec;--fg:#1b2230;
+    --muted:#6a7686;--faint:#93a0b2;--accent:#5b4bd6;--accent-weak:rgba(91,76,214,.12);
+    --thread:#b9842f;--ok:#1f9d6b;--font:"IBM Plex Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+    color-scheme:light;
+  }
+  @media(prefers-color-scheme:dark){:root{
+    --bg:#0d1117;--surface:#161c24;--rail:#14181f;--border:#28323f;--fg:#e6ecf4;
+    --muted:#93a0b2;--faint:#6b7889;--accent:#9b8cff;--accent-weak:rgba(155,140,255,.16);--thread:#d8a94e;--ok:#34c089;color-scheme:dark;}}
+  *{box-sizing:border-box}html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px}
+  .hidden{display:none!important}
+  a{color:var(--accent);text-decoration:none}
+  /* login */
+  #login{height:100%;display:grid;place-items:center;padding:24px 16px}
+  .card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:30px 28px}
+  .brand{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:4px}
+  .brand svg{width:24px;height:24px}.brand b{font-size:20px;font-weight:600}
+  .wm{font-weight:600;letter-spacing:-.01em}.wm .n{color:var(--thread);font-weight:700}
+  h1{font-size:17px;text-align:center;margin:12px 0 4px}.sub{text-align:center;color:var(--muted);font-size:13px;margin:0 0 20px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 6px}
+  .in{width:100%;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font:inherit;font-size:14px;background:var(--bg);color:var(--fg);outline:none}
+  .in:focus,.site:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+  .site{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg);font-family:var(--mono)}
+  .site .f{display:grid;place-items:center;padding:0 10px;color:var(--faint);font-size:13px;background:var(--surface);border-right:1px solid var(--border)}
+  .site .f.r{border-right:0;border-left:1px solid var(--border)}
+  .site input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:14px;padding:11px 10px;text-align:center;outline:none}
+  .btn{width:100%;margin-top:18px;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .err{color:#cf3f36;font-size:12px;text-align:center;min-height:16px;margin-top:10px}
+  /* app */
+  #app{height:100%;display:grid;grid-template-rows:52px 1fr}
+  .top{display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .top .nm{font-weight:600;font-size:15px}.top .sp{flex:1}
+  .kk{font-size:11px;color:var(--faint);border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-family:var(--mono);cursor:pointer}
+  .me{display:flex;align-items:center;gap:8px}
+  .meav{width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:11px}
+  .who{color:var(--muted);font-size:13px}
+  .lo{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:7px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12px}
+  .main{display:flex;flex-direction:column;min-height:0}
+  .chbar{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);align-items:center}
+  .chbar input#channel{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 11px;font:inherit;background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:13px;outline:none}
+  .chbar button{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}
+  .topic{padding:7px 16px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;background:var(--rail)}
+  .projlist{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--rail)}
+  .pchip{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:999px;padding:5px 11px;font:inherit;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  .pchip:hover{border-color:var(--accent);color:var(--accent)}
+  .pmuted{color:var(--faint);font-size:12px;padding:3px}
+  .stream{flex:1;overflow:auto;padding:14px 16px;max-width:860px;width:100%;margin:0 auto}
+  .convo{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;background:var(--surface)}
+  .ch{display:flex;align-items:center;gap:9px;margin-bottom:5px}
+  .av{width:28px;height:28px;border-radius:7px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:11px;flex:none}
+  .who2{font-weight:600}.time{color:var(--faint);font-size:12px}
+  .key{margin-left:auto;font-family:var(--mono);font-size:11px}
+  .lines{margin:2px 0 0 37px}.lines p{margin:0 0 3px;white-space:pre-wrap}
+  .reps{margin:8px 0 0 37px;border-left:2px solid var(--border);padding-left:12px;display:flex;flex-direction:column;gap:6px}
+  .rep{font-size:13px}.rep .ra{font-weight:600}.fj{font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-weak);border-radius:4px;padding:1px 5px}
+  .replybar{margin:8px 0 0 37px;display:flex;gap:6px}
+  .replybar input{flex:1;border:1px solid var(--border);border-radius:7px;padding:6px 10px;font:inherit;font-size:13px;background:var(--bg);color:var(--fg);outline:none}
+  .replybar button{border:0;background:var(--accent-weak);color:var(--accent);border-radius:7px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .empty{color:var(--faint);text-align:center;padding:40px}
+  .composer{border-top:1px solid var(--border);padding:12px 16px;max-width:860px;width:100%;margin:0 auto;position:relative}
+  .composer form{display:flex;gap:8px}
+  .composer input#body{flex:1;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font:inherit;font-size:14px;background:var(--surface);color:var(--fg);outline:none}
+  .emojibtn{border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:0 12px;font-size:16px;cursor:pointer}
+  .composer button[type=submit]{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:0 18px;font:inherit;font-weight:600;cursor:pointer}
+  .palette{position:absolute;bottom:58px;left:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+  .palette span{font-size:18px;padding:4px;cursor:pointer;border-radius:6px;text-align:center}
+  .palette span:hover{background:var(--accent-weak)}
+  /* quick switcher */
+  .ovl{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:start center;padding-top:14vh;z-index:10}
+  .sw{width:100%;max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .sw input{width:100%;border:0;border-bottom:1px solid var(--border);padding:14px 16px;font:inherit;font-size:15px;background:transparent;color:var(--fg);outline:none}
+  .sw .results{max-height:320px;overflow:auto}
+  .sw .r{padding:10px 16px;cursor:pointer;display:flex;gap:10px;align-items:baseline}
+  .sw .r.sel{background:var(--accent-weak)}
+  .sw .r .k{font-family:var(--mono);font-size:12px;color:var(--accent);min-width:64px}
+  .sw .r .n{color:var(--fg)}
+  .statuschip{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:4px 11px;font:inherit;font-size:12px;cursor:pointer;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #dndbtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  #clockbtn.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .nbadge{background:var(--accent);color:#fff;border-radius:9px;font-size:9px;font-weight:700;padding:0 4px;margin-left:2px}
+  .notifpanel{max-height:70vh;overflow:auto;width:300px}
+  .notifpanel .ni{padding:7px 10px;cursor:pointer;font-size:12px;border-top:1px solid var(--border);color:var(--fg)}
+  .notifpanel .ni.unread{background:var(--accent-weak)}
+  .notifpanel .ni .k{color:var(--faint);font-size:11px}
+  .notifpanel .ni .ss{color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .notifpanel .ni .cn2{color:var(--accent)}
+  .kwchip{display:inline-block;background:var(--accent-weak);color:var(--accent);border-radius:10px;padding:1px 8px;font-size:11px;margin:2px;cursor:pointer}
+  .chanlist{display:none;flex-direction:column;gap:1px;padding:8px;border-bottom:1px solid var(--border);background:var(--rail);max-height:280px;overflow:auto}
+  .crow{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;cursor:pointer;color:var(--fg);font-size:13px}
+  .crow:hover{background:var(--accent-weak)}
+  .crow.arch{opacity:.5}
+  .crow .st{cursor:pointer;color:var(--faint);font-size:14px}
+  .crow .st.on{color:var(--thread)}
+  .crow .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .crow .cc{color:var(--faint);font-size:11px;font-family:var(--mono)}
+  .crow .ar{color:var(--faint);font-size:11px;cursor:pointer}
+  .csec{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:7px 8px 2px}
+  .crow.nested .cn{padding-left:12px}
+  .lines code,.rep code{background:var(--accent-weak);color:var(--accent);padding:1px 4px;border-radius:4px;font-family:var(--mono);font-size:.92em}
+  .lines pre{background:var(--rail);border:1px solid var(--border);border-radius:8px;padding:10px 12px;overflow:auto;margin:6px 0}
+  .lines pre code{background:none;color:var(--fg);padding:0}
+  .lines blockquote,.rep blockquote{border-left:3px solid var(--border);margin:6px 0;padding:2px 0 2px 10px;color:var(--muted)}
+  .lines h4,.lines h5,.lines h6{margin:8px 0 4px;line-height:1.25}
+  .lines h4{font-size:16px}.lines h5{font-size:14px}.lines h6{font-size:13px;color:var(--muted)}
+  .lines ul,.lines ol{margin:4px 0;padding-left:20px}
+  .lines a,.rep a{color:var(--accent);text-decoration:underline}
+  .lines hr{border:0;border-top:1px solid var(--border);margin:8px 0}
+  .unfurl{display:block;margin-top:8px;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:8px 10px;text-decoration:none;max-width:460px}
+  .unfurl:hover{background:var(--accent-weak)}
+  .unfurl .uft{font-weight:600;color:var(--fg);font-size:13px}
+  .unfurl .ufd{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .unfurl .ufh{color:var(--faint);font-size:11px;margin-top:3px}
+  .atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .att-img img{max-width:260px;max-height:200px;border-radius:8px;border:1px solid var(--border);display:block}
+  .att-file{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--fg);text-decoration:none}
+  .att-file:hover{border-color:var(--accent)}
+  .att-file .asz{color:var(--faint);font-size:11px}
+  .rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;align-items:center}
+  .rchip{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:1px 8px;font-size:12px;cursor:pointer;color:var(--muted);font-variant-numeric:tabular-nums}
+  .rchip.mine{border-color:var(--accent);background:var(--accent-weak);color:var(--accent)}
+  .rxadd{border:1px dashed var(--border);background:transparent;border-radius:12px;padding:1px 7px;font-size:12px;cursor:pointer;color:var(--faint);line-height:1.4}
+  .rxadd:hover{color:var(--accent);border-color:var(--accent)}
+  .rxpal{display:flex;flex-wrap:wrap;gap:2px;margin-top:5px;width:100%}
+  .rxpal span{cursor:pointer;font-size:16px;padding:2px 3px;border-radius:5px}
+  .rxpal span:hover{background:var(--accent-weak)}
+  .ubadge{background:var(--accent);color:#fff;border-radius:9px;font-size:10px;font-weight:700;padding:0 6px;font-variant-numeric:tabular-nums}
+  .crow.unread .cn{font-weight:700;color:var(--fg)}
+  .shit{display:block;padding:6px 8px;border-radius:7px;cursor:pointer;color:var(--fg)}
+  .shit:hover{background:var(--accent-weak)}
+  .shit .sc{font-size:11px;color:var(--accent);font-weight:600}
+  .shit .ss{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pres{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;max-width:260px;overflow:hidden}
+  .pres .dot{width:7px;height:7px;border-radius:50%;background:#2ecc71;flex:none;box-shadow:0 0 0 2px var(--surface)}
+  .pres .pn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .typing{min-height:16px;padding:0 16px;font-size:12px;color:var(--faint);font-style:italic}
+  .mentions{position:absolute;bottom:52px;left:16px;width:340px;max-width:calc(100% - 32px);background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden;z-index:30}
+  .mentions .mi{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;font-size:13px;color:var(--fg)}
+  .mentions .mi.sel{background:var(--accent-weak)}
+  .mentions .ma{width:22px;height:22px;border-radius:50%;background:var(--accent-weak);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:none}
+  .rep .mention,.lines .mention{color:var(--accent);font-weight:600}
+  .savebtn{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:15px;padding:0 4px}
+  .savebtn.on{color:var(--thread)}
+  .statusbtn{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:1px 9px;font-size:11px;font-weight:600;cursor:pointer;margin-left:8px;white-space:nowrap}
+  .statusbtn.done{color:var(--ok);border-color:var(--ok)}
+  .statusbtn.prog{color:var(--thread);border-color:var(--thread)}
+  .stmenu{position:fixed;z-index:40;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);overflow:hidden;min-width:160px}
+  .stmenu .sh{padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+  .stmenu .si{padding:7px 12px;font-size:13px;cursor:pointer;color:var(--fg);white-space:nowrap}
+  .stmenu .si:hover{background:var(--accent-weak)}
+  .starthint{padding:7px 9px 2px;font-size:11px;color:var(--faint)}
+  .acts{margin-left:auto;display:flex;align-items:center;gap:3px}
+  .iconbtn{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:13px;padding:0 3px;opacity:.55;line-height:1}
+  .iconbtn:hover{opacity:1}
+  .pinbtn.on{opacity:1;filter:none}
+  .convo.pinned{border-left:2px solid var(--thread);padding-left:10px}
+  .convo.deleted .lines{opacity:.6}
+  .lines p.del{font-style:italic;color:var(--faint)}
+  .rep .bc{font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--thread);border:1px solid var(--thread);border-radius:4px;padding:0 3px;margin-left:3px}
+  .replybar .bcl{display:flex;align-items:center;gap:3px;color:var(--faint);font-size:12px;cursor:pointer;user-select:none}
+</style>
+</head>
+<body>
+
+<section id="login">
+  <form class="card" id="loginform" autocomplete="off">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6"><path d="M3 6h18M3 12h18M3 18h18" stroke-opacity=".35"/><path d="M6 3v18M12 3v18M18 3v18" stroke="var(--thread)"/></svg>
+      <b class="wm">weave<span class="n">N</span></b>
+    </div>
+    <h1>Connect your JIRA</h1>
+    <p class="sub">Your JIRA identity is your <span class="wm">weave<span class="n">N</span></span> identity.</p>
+    <label for="site">JIRA site</label>
+    <div class="site"><span class="f">https://</span><input id="site" value="" placeholder="your-company" spellcheck="false"><span class="f r">.atlassian.net</span></div>
+    <label for="email">Account email</label>
+    <input class="in" id="email" type="email" autocomplete="off" placeholder="you@company.com">
+    <label for="token">API token</label>
+    <input class="in" id="token" type="password" autocomplete="new-password" data-1p-ignore data-lpignore="true" data-bwignore placeholder="ATATT…">
+    <p class="sub" style="margin:6px 0 0;font-size:11px">From id.atlassian.com → API tokens. Validated against JIRA; not stored in the clear.</p>
+    <button class="btn" id="loginbtn" type="submit">Connect</button>
+    <div class="err" id="loginerr"></div>
+  </form>
+</section>
+
+<section id="app" class="hidden">
+  <div class="top">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6"><path d="M6 3v18M12 3v18M18 3v18" stroke="var(--thread)"/></svg>
+    <span class="nm wm">weave<span class="n">N</span></span>
+    <button class="kk" id="switchbtn" title="Quick switch (⌘K)">⌘K</button>
+    <button class="kk" id="chansbtn" title="Channels">≡ Channels</button>
+    <button class="kk" id="savedbtn" title="Saved items">★ Saved</button>
+    <button class="kk" id="searchbtn" title="Search messages">🔍 Search</button>
+    <button class="kk" id="startersbtn" title="Suggested starter channels">✨ Starter</button>
+    <a class="kk" id="dash" target="_blank" rel="noopener" href="#">Dashboards ↗</a>
+    <span class="pres" id="pres" title="People here now"></span>
+    <span class="pres" id="onclock" title="On the clock"></span>
+    <span class="sp"></span>
+    <button class="statuschip" id="statuschip" title="Set a status">＋ Set status</button>
+    <button class="kk" id="clockbtn" title="Clock in / out">⏱ Clock in</button>
+    <button class="kk" id="bellbtn" title="Notifications">🔔<span id="bellbadge" class="nbadge" style="display:none"></span></button>
+    <button class="kk" id="dndbtn" title="Do not disturb">DND</button>
+    <div class="me"><span class="meav" id="meav"></span><span class="who" id="who"></span></div>
+    <button class="lo" id="logout">Sign out</button>
+  </div>
+  <div class="main">
+    <div class="chbar">
+      <button id="projects">▾ Projects</button>
+      <input id="channel" value="eng / backend / deploys" spellcheck="false">
+      <button id="load">Load</button>
+      <label style="margin:0;display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px"><input type="checkbox" id="subtree"> subtree</label>
+      <button id="exportbtn" title="Download this channel's transcript (Markdown)">⤓ Export</button>
+      <button id="chanacl" title="Channel privacy & members">🔒 Members</button>
+    </div>
+    <div class="topic" id="topic"></div>
+    <div class="projlist" id="projlist" style="display:none"></div>
+    <div class="chanlist" id="chanlist"></div>
+    <div class="stream" id="stream"><div class="empty">Press <b>⌘K</b> or click <b>Projects</b> to open a channel — or type below to start a conversation.</div></div>
+    <div class="typing" id="typing"></div>
+    <div class="composer">
+      <div class="mentions hidden" id="mentions"></div>
+      <div class="palette hidden" id="palette"></div>
+      <form id="sendform">
+        <button type="button" class="emojibtn" id="emojibtn" title="Emoji">🙂</button>
+        <button type="button" class="emojibtn" id="attachbtn" title="Attach a file">📎</button>
+        <button type="button" class="emojibtn" id="laterbtn" title="Send later / remind me">⏰</button>
+        <input type="file" id="fileinput" hidden>
+        <input id="body" placeholder="Message this channel — it becomes a JIRA issue" autocomplete="off">
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<div class="ovl hidden" id="overlay"><div class="sw">
+  <input id="swinput" placeholder="Jump to a project…" autocomplete="off">
+  <div class="results" id="swresults"></div>
+</div></div>
+
+<script>
+const $=s=>document.querySelector(s);
+let SITE='', PROJECTS=[], CURCH='';
+let SAVED=new Set(), STATE={emoji:null,text:null,dnd:false};
+let WS=null, WS_RETRY=0, lastTyping=0, typingClear=null, MEID='', MENAME='';
+let MENTIONS=[], MN_ITEMS=[], MN_SEL=0, MN_AT=-1, mnTimer=null;
+async function api(path,opts={}){opts.credentials='same-origin';opts.headers=Object.assign({'content-type':'application/json'},opts.headers||{});return fetch(path,opts);}
+function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function initials(n){return (n||'?').split(/[\s@._]/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('');}
+function fmtTime(ts){try{return new Date(ts*1000).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(e){return '';}}
+function permalink(key){return SITE?`${SITE}/browse/${encodeURIComponent(key)}`:'#';}
+function fmtSize(n){n=+n||0;if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(0)+' KB';return (n/1048576).toFixed(1)+' MB';}
+// mrkdwn inline marks on ALREADY-ESCAPED text → HTML
+function mdInline(s){
+  s=s.replace(/`([^`]+)`/g,(m,c)=>`<code>${c}</code>`);
+  s=s.replace(/\[([^\]]+)\]\((https?:[^\s)]+)\)/g,(m,t,u)=>`<a href="${u}" target="_blank" rel="noopener">${t}</a>`);
+  s=s.replace(/&lt;(https?:[^\s|]+?)(?:\|([^]*?))?&gt;/g,(m,u,t)=>`<a href="${u}" target="_blank" rel="noopener">${t||u}</a>`);
+  s=s.replace(/(^|\s)\*([^*\n]+)\*(?=$|\s|[.,!?;:])/g,(m,p,t)=>`${p}<b>${t}</b>`);
+  s=s.replace(/(^|\s)_([^_\n]+)_(?=$|\s|[.,!?;:])/g,(m,p,t)=>`${p}<i>${t}</i>`);
+  s=s.replace(/(^|\s)~([^~\n]+)~(?=$|\s|[.,!?;:])/g,(m,p,t)=>`${p}<s>${t}</s>`);
+  return s;
+}
+// mrkdwn block renderer (headings, lists, quote, code fence, rule, paragraphs)
+function renderMd(text){
+  const lines=esc(text).split('\n'); let html='', i=0;
+  const sp=u=>u.replace(/^\s+/,'');
+  const flushList=(buf,tag)=>{ if(buf.length) html+=`<${tag}>`+buf.map(x=>`<li>${mdInline(x)}</li>`).join('')+`</${tag}>`; };
+  const special=u=>u===''||u.startsWith('```')||/^#{1,3}\s/.test(u)||/^(-|\*)\s/.test(u)||/^\d+\.\s/.test(u)||u.startsWith('&gt;')||u==='---'||u==='***';
+  while(i<lines.length){
+    const t=sp(lines[i]);
+    if(t.startsWith('```')){ i++; const code=[]; while(i<lines.length&&!sp(lines[i]).startsWith('```')){code.push(lines[i]);i++;} if(i<lines.length)i++; html+=`<pre><code>${code.join('\n')}</code></pre>`; continue; }
+    const hm=t.match(/^(#{1,3})\s+(.*)$/); if(hm){ html+=`<h${hm[1].length+3}>${mdInline(hm[2])}</h${hm[1].length+3}>`; i++; continue; }
+    if(t==='---'||t==='***'){ html+='<hr>'; i++; continue; }
+    if(/^(-|\*)\s+/.test(t)){ const buf=[]; while(i<lines.length){const mm=sp(lines[i]).match(/^(?:-|\*)\s+(.*)$/); if(!mm)break; buf.push(mm[1]); i++;} flushList(buf,'ul'); continue; }
+    if(/^\d+\.\s+/.test(t)){ const buf=[]; while(i<lines.length){const mm=sp(lines[i]).match(/^\d+\.\s+(.*)$/); if(!mm)break; buf.push(mm[1]); i++;} flushList(buf,'ol'); continue; }
+    if(t.startsWith('&gt; ')||t==='&gt;'){ const buf=[]; while(i<lines.length){const u=sp(lines[i]); if(u.startsWith('&gt; ')){buf.push(u.slice(5));i++;} else if(u==='&gt;'){buf.push('');i++;} else break;} html+=`<blockquote>${buf.map(mdInline).join('<br>')}</blockquote>`; continue; }
+    if(t===''){ i++; continue; }
+    const para=[]; while(i<lines.length){ const u=sp(lines[i]); if(special(u))break; para.push(lines[i]); i++; } html+=`<p>${para.map(mdInline).join('<br>')}</p>`;
+  }
+  return html||'<p></p>';
+}
+function projName(key){const p=PROJECTS.find(p=>p.key===key);return p?p.name:'';}
+
+async function me(){try{const r=await api('/auth/me');if(r.ok)return await r.json();}catch(e){}return null;}
+async function showApp(sess){
+  SITE=(sess.site||'').replace(/\/$/,'');
+  MEID=sess.subject||''; MENAME=sess.display_name||sess.email||sess.subject||'';
+  $('#login').classList.add('hidden');$('#app').classList.remove('hidden');
+  $('#who').textContent=MENAME;
+  $('#meav').textContent=initials(MENAME);
+  await loadSaved(); loadState();
+  ensureProjects(); loadChannel(); connectWS(); firstRun(); loadAvailability(); loadNotifications();
+}
+let NOTIFS={unread:0,items:[]};
+function renderBell(n){ const b=$('#bellbadge'); if(n>0){b.textContent=n>99?'99+':n; b.style.display='';} else {b.style.display='none';} }
+async function loadNotifications(){ try{const r=await api('/notifications'); if(!r.ok)return; NOTIFS=await r.json(); renderBell(NOTIFS.unread);}catch(e){} }
+async function loadKeywordsInto(el){
+  const r=await api('/keywords'); if(!r.ok)return; const kws=await r.json();
+  el.innerHTML=kws.length?kws.map(k=>`<span class="kwchip" data-k="${esc(k)}">${esc(k)} ✕</span>`).join(''):'<span class="pmuted" style="font-size:11px">none yet</span>';
+  el.querySelectorAll('.kwchip').forEach(c=>c.addEventListener('click',async()=>{ await api('/keywords',{method:'POST',body:JSON.stringify({keyword:c.dataset.k,on:false})}); loadKeywordsInto(el); }));
+}
+async function openNotifPanel(){
+  document.querySelectorAll('.notifpanel').forEach(p=>p.remove());
+  await loadNotifications();
+  const panel=document.createElement('div'); panel.className='notifpanel stmenu';
+  let html='<div class="sh" style="display:flex;justify-content:space-between"><span>Notifications</span><span id="markall" style="cursor:pointer;color:var(--accent)">mark all read</span></div>';
+  html+=NOTIFS.items.length?NOTIFS.items.map(n=>`<div class="ni${n.read?'':' unread'}" data-id="${n.id}" data-ch="${esc(n.channel)}"><b>${esc(n.actor)}</b> <span class="k">${n.kind==='mention'?'mentioned you':(n.kind==='keyword'?'matched a keyword':'replied')}</span><div class="ss">${esc(n.snippet)} <span class="cn2">#${esc(n.channel)}</span></div></div>`).join(''):'<div class="sh">No notifications yet</div>';
+  html+='<div class="sh">Alert me on keywords</div><div style="padding:4px 10px"><input id="kwq" placeholder="add a keyword, Enter…" autocomplete="off" style="width:100%;box-sizing:border-box"><div id="kwlist" style="margin-top:4px"></div></div>';
+  panel.innerHTML=html; document.body.appendChild(panel);
+  const bb=$('#bellbtn').getBoundingClientRect(); panel.style.left=Math.min(bb.left,window.innerWidth-312)+'px'; panel.style.top=(bb.bottom+4)+'px';
+  panel.querySelectorAll('.ni').forEach(el=>el.addEventListener('click',async()=>{
+    await api('/notifications/read',{method:'POST',body:JSON.stringify({id:+el.dataset.id})});
+    panel.remove(); if(el.dataset.ch) openChannel(el.dataset.ch,false); loadNotifications();
+  }));
+  $('#markall').addEventListener('click',async()=>{ await api('/notifications/read',{method:'POST',body:JSON.stringify({})}); panel.remove(); loadNotifications(); });
+  loadKeywordsInto($('#kwlist'));
+  $('#kwq').addEventListener('keydown',async e=>{ if(e.key==='Enter'){ e.preventDefault(); const v=e.target.value.trim(); if(!v)return; await api('/keywords',{method:'POST',body:JSON.stringify({keyword:v,on:true})}); e.target.value=''; loadKeywordsInto($('#kwlist')); } });
+  setTimeout(()=>document.addEventListener('click',function off(e){ if(!panel.contains(e.target)&&e.target.id!=='bellbtn'){panel.remove();document.removeEventListener('click',off);} }),0);
+}
+$('#bellbtn').addEventListener('click',openNotifPanel);
+
+// send later / remind me
+$('#laterbtn').addEventListener('click',()=>{
+  document.querySelectorAll('.stmenu').forEach(m=>m.remove());
+  const menu=document.createElement('div'); menu.className='stmenu';
+  menu.innerHTML='<div class="sh">Schedule</div><div class="si" data-act="send">⏰ Send this later…</div><div class="si" data-act="remind">🔔 Remind me…</div>';
+  document.body.appendChild(menu);
+  const bb=$('#laterbtn').getBoundingClientRect(); menu.style.left=bb.left+'px'; menu.style.top=Math.max(8,bb.top-92)+'px';
+  menu.querySelectorAll('.si').forEach(el=>el.addEventListener('click',async()=>{
+    menu.remove(); const act=el.dataset.act, ch=CURCH||$('#channel').value.trim();
+    if(act==='send'){
+      const body=$('#body').value.trim(); if(!body){alert('Type a message first.');return;}
+      const mins=parseFloat(prompt('Send in how many minutes?','5')); if(!mins||mins<=0)return;
+      const r=await api('/schedule',{method:'POST',body:JSON.stringify({kind:'message',channel:ch,body,in_seconds:Math.round(mins*60)})});
+      if(r.ok){$('#body').value='';saveDraft();alert('Scheduled ✓');} else alert('Failed: '+await r.text());
+    } else {
+      const text=prompt('Remind me to…',$('#body').value.trim()); if(text===null||!text.trim())return;
+      const mins=parseFloat(prompt('In how many minutes?','10')); if(!mins||mins<=0)return;
+      const r=await api('/schedule',{method:'POST',body:JSON.stringify({kind:'reminder',channel:ch,body:text,in_seconds:Math.round(mins*60)})});
+      if(r.ok)alert('Reminder set ✓'); else alert('Failed: '+await r.text());
+    }
+  }));
+  setTimeout(()=>document.addEventListener('click',function off(e){if(!menu.contains(e.target)&&e.target.id!=='laterbtn'){menu.remove();document.removeEventListener('click',off);}}),0);
+});
+async function loadAvailability(){ try{const r=await api('/availability'); if(r.ok) renderAvail(await r.json());}catch(e){} }
+function renderAvail(a){
+  const btn=$('#clockbtn'); btn.textContent=a.on?'⏹ Clock out':'⏱ Clock in'; btn.classList.toggle('on',!!a.on);
+  const el=$('#onclock');
+  if(a.people&&a.people.length){ el.innerHTML='<span class="dot" style="background:#e2b63c"></span><span class="pn">'+a.people.length+' on the clock</span>'; el.title='On the clock: '+a.people.map(p=>esc(p.display)).join(', '); }
+  else { el.innerHTML=''; el.title=''; }
+}
+$('#clockbtn').addEventListener('click',async()=>{
+  const on=$('#clockbtn').classList.contains('on');
+  const r=await api('/availability',{method:'POST',body:JSON.stringify({on:!on})});
+  if(r.ok) renderAvail(await r.json());
+});
+function showLogin(){$('#app').classList.add('hidden');$('#login').classList.remove('hidden');if(WS){WS.onclose=null;WS.close();WS=null;}}
+
+$('#loginform').addEventListener('submit',async e=>{
+  e.preventDefault();const b=$('#loginbtn');b.disabled=true;$('#loginerr').textContent='';
+  try{
+    const r=await api('/auth/jira',{method:'POST',body:JSON.stringify({site:$('#site').value.trim(),email:$('#email').value.trim(),token:$('#token').value})});
+    if(!r.ok){$('#loginerr').textContent=await r.text();b.disabled=false;return;}
+    showApp(await r.json());
+  }catch(e){$('#loginerr').textContent='Connection error';b.disabled=false;}
+});
+$('#logout').addEventListener('click',async()=>{await api('/auth/logout');showLogin();});
+$('#load').addEventListener('click',loadChannel);
+$('#exportbtn').addEventListener('click',async()=>{
+  const ch=CURCH||$('#channel').value.trim(); if(!ch)return;
+  const sub=$('#subtree').checked;
+  const r=await api('/export?channel='+encodeURIComponent(ch)+(sub?'&subtree=true':'')+'&format=md');
+  if(!r.ok){alert('Export failed: '+await r.text());return;}
+  const blob=await r.blob(), url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  a.download=(ch.replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase()||'channel')+'.md';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+
+async function ensureProjects(){ if(PROJECTS.length)return; try{const r=await api('/discover'); if(r.ok)PROJECTS=await r.json();}catch(e){} }
+
+$('#projects').addEventListener('click',async()=>{
+  const pl=$('#projlist');
+  if(pl.style.display==='flex'){pl.style.display='none';return;}
+  pl.style.display='flex';pl.innerHTML='<span class="pmuted">Discovering projects…</span>';
+  await ensureProjects();
+  if(!PROJECTS.length){pl.innerHTML='<span class="pmuted">No projects visible to your account.</span>';return;}
+  pl.innerHTML=PROJECTS.map(p=>`<button class="pchip" data-k="${esc(p.key)}">${esc(p.key)} · ${esc(p.name)}</button>`).join('');
+  pl.querySelectorAll('.pchip').forEach(b=>b.addEventListener('click',()=>{pl.style.display='none';openChannel(b.dataset.k,true);}));
+});
+
+// open a channel: optionally backfill (for a project key), then load
+async function openChannel(ch,backfill){
+  $('#channel').value=ch;
+  if(backfill){ try{await api('/backfill',{method:'POST',body:JSON.stringify({project:ch})});}catch(e){} }
+  loadChannel();
+}
+
+function saveDraft(){try{localStorage.setItem('weavn-draft:'+CURCH,$('#body').value);}catch(e){}}
+function restoreDraft(){try{$('#body').value=localStorage.getItem('weavn-draft:'+$('#channel').value.trim())||'';}catch(e){$('#body').value='';}}
+
+async function loadChannel(){
+  const ch=$('#channel').value.trim();const sub=$('#subtree').checked;
+  CURCH=ch; restoreDraft();
+  $('#typing').textContent='';
+  const pn=projName(ch);
+  $('#topic').textContent=pn?`${ch} · ${pn}`:`${ch}`;
+  const r=await api('/read?channel='+encodeURIComponent(ch)+(sub?'&subtree=true':''));
+  const stream=$('#stream');
+  if(!r.ok){stream.innerHTML='<div class="empty">'+esc(await r.text())+'</div>';return;}
+  const threads=await r.json();
+  if(!threads.length){stream.innerHTML='<div class="empty">No conversations yet — send one below.</div>';return;}
+  stream.innerHTML=threads.map(t=>{const k=esc(t.issue_key);return `
+    <article class="convo${t.pinned?' pinned':''}${t.deleted?' deleted':''}">
+      <div class="ch"><div class="av">${esc(initials(t.author))}</div><span class="who2">${esc(t.author)}</span><span class="time">${esc(fmtTime(t.ts))}</span><button class="statusbtn ${statusClass(t.status)}" data-issue="${k}" title="Change status">${esc(t.status||'—')}</button>
+        <span class="acts">
+          <button class="iconbtn pinbtn${t.pinned?' on':''}" data-issue="${k}" data-on="${t.pinned?1:0}" title="${t.pinned?'Unpin':'Pin for the channel'}">📌</button>
+          <button class="savebtn${SAVED.has(t.issue_key)?' on':''}" data-issue="${k}" title="Save">${SAVED.has(t.issue_key)?'★':'☆'}</button>
+          <button class="iconbtn morebtn" data-issue="${k}" data-raw="${encodeURIComponent(t.lines.join('\n'))}" title="More actions">⋯</button>
+          <span class="key"><a href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></span>
+        </span></div>
+      <div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div>
+      ${(t.attachments&&t.attachments.length)?`<div class="atts">${t.attachments.map(a=>a.is_image?`<a class="att-img" href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.filename)}" loading="lazy"></a>`:`<a class="att-file" href="${esc(a.url)}" target="_blank" rel="noopener">📄 ${esc(a.filename)} <span class="asz">${fmtSize(a.size)}</span></a>`).join('')}</div>`:''}
+      ${t.replies.length?`<div class="reps">${t.replies.map(x=>`<div class="rep"><span class="ra">${esc(x.author)}</span>${x.from_jira?' <span class="fj">FROM JIRA</span>':''}${x.broadcast?' <span class="bc">↗ CHANNEL</span>':''}: ${mdInline(esc(x.body))}</div>`).join('')}</div>`:''}
+      <div class="rx" data-issue="${k}">${(t.reactions||[]).map(x=>`<button class="rchip${x.mine?' mine':''}" data-code="${esc(x.shortcode)}" data-on="${x.mine?1:0}">${esc(x.shortcode)} ${x.count}</button>`).join('')}<button class="rxadd" title="Add reaction">＋</button></div>
+      <div class="replybar"><input placeholder="Reply…" data-issue="${k}"><label class="bcl" title="Also surface this reply at the channel level"><input type="checkbox" class="bcx"> ↗ channel</label><button data-issue="${k}">Reply</button></div>
+    </article>`;}).join('');
+  stream.querySelectorAll('.replybar button').forEach(btn=>btn.addEventListener('click',async()=>{
+    const bar=btn.closest('.replybar');const inp=bar.querySelector('input[data-issue]');
+    const body=inp.value.trim();if(!body)return;
+    const broadcast=bar.querySelector('.bcx').checked;
+    await api('/reply',{method:'POST',body:JSON.stringify({issue:btn.dataset.issue,body,broadcast})});
+    inp.value='';loadChannel();
+  }));
+  stream.querySelectorAll('.savebtn').forEach(b=>b.addEventListener('click',async()=>{
+    const k=b.dataset.issue, on=SAVED.has(k);
+    await api('/save',{method:'POST',body:JSON.stringify({issue:k,on:!on})});
+    if(on){SAVED.delete(k);b.classList.remove('on');b.textContent='☆';}
+    else{SAVED.add(k);b.classList.add('on');b.textContent='★';}
+  }));
+  stream.querySelectorAll('.pinbtn').forEach(b=>b.addEventListener('click',async()=>{
+    const on=b.dataset.on==='1';
+    await api('/pin',{method:'POST',body:JSON.stringify({channel:CURCH,issue:b.dataset.issue,on:!on})});
+    loadChannel();
+  }));
+  stream.querySelectorAll('.statusbtn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openStatusMenu(b,b.dataset.issue);}));
+  stream.querySelectorAll('.rchip').forEach(b=>b.addEventListener('click',async()=>{
+    const issue=b.closest('.rx').dataset.issue, on=b.dataset.on==='1';
+    await api('/react',{method:'POST',body:JSON.stringify({issue,shortcode:b.dataset.code,on:!on})});
+    loadChannel();
+  }));
+  stream.querySelectorAll('.rxadd').forEach(b=>b.addEventListener('click',()=>openRxPal(b.closest('.rx'))));
+  markRead();
+  stream.querySelectorAll('.morebtn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openActionsMenu(b);}));
+  unfurlThreads();
+}
+// auto-preview the first link in each conversation (cached per URL)
+let UNFURL={};
+function unfurlThreads(){
+  document.querySelectorAll('.convo').forEach(async art=>{
+    if(art.querySelector('.unfurl'))return;
+    const a=art.querySelector('.lines a[href^="http"]'); if(!a)return;
+    const url=a.href;
+    if(UNFURL[url]===undefined){
+      try{const r=await api('/unfurl?url='+encodeURIComponent(url)); UNFURL[url]=r.ok?await r.json():null;}catch(e){UNFURL[url]=null;}
+    }
+    const d=UNFURL[url]; if(!d||!d.title)return;
+    if(art.querySelector('.unfurl'))return;
+    const card=document.createElement('a'); card.className='unfurl'; card.href=url; card.target='_blank'; card.rel='noopener';
+    card.innerHTML=`<div class="uft">${esc(d.title)}</div>${d.description?`<div class="ufd">${esc(d.description)}</div>`:''}<div class="ufh">${esc(d.host)}</div>`;
+    art.querySelector('.lines').insertAdjacentElement('afterend', card);
+  });
+}
+
+// per-conversation overflow actions (copy link, open in JIRA, edit, delete)
+async function editConversation(issue, raw){
+  const v=prompt('Edit this message — JIRA keeps the full edit history:',raw||'');
+  if(v===null||!v.trim())return;
+  await api('/edit',{method:'POST',body:JSON.stringify({issue,body:v})});
+  loadChannel();
+}
+async function deleteConversation(issue){
+  if(!confirm('Delete this message? The text is redacted; JIRA keeps the prior version in its changelog.'))return;
+  await api('/delete',{method:'POST',body:JSON.stringify({issue})});
+  loadChannel();
+}
+async function copyText(text){ try{ await navigator.clipboard.writeText(text); return true; }catch(e){ return false; } }
+function openActionsMenu(btn){
+  document.querySelectorAll('.stmenu').forEach(m=>m.remove());
+  const issue=btn.dataset.issue, raw=decodeURIComponent(btn.dataset.raw||''), link=permalink(issue);
+  const menu=document.createElement('div'); menu.className='stmenu';
+  menu.innerHTML='<div class="sh">Actions</div>'
+    +`<div class="si" data-act="copy">🔗 Copy link</div>`
+    +`<div class="si" data-act="jira">↗ Open in JIRA</div>`
+    +`<div class="si" data-act="sprint">🏃 Move to sprint…</div>`
+    +`<div class="si" data-act="edit">✎ Edit message</div>`
+    +`<div class="si" data-act="del">🗑 Delete message</div>`;
+  document.body.appendChild(menu);
+  const bb=btn.getBoundingClientRect();
+  menu.style.left=Math.min(bb.left,window.innerWidth-200)+'px'; menu.style.top=(bb.bottom+4)+'px';
+  menu.querySelectorAll('.si').forEach(el=>el.addEventListener('click',async()=>{
+    const act=el.dataset.act; menu.remove();
+    if(act==='copy'){ const ok=await copyText(link); if(!ok)prompt('Copy this link:',link); }
+    else if(act==='jira'){ window.open(link,'_blank','noopener'); }
+    else if(act==='sprint'){ openSprintMenu(btn, issue); }
+    else if(act==='edit'){ editConversation(issue,raw); }
+    else if(act==='del'){ deleteConversation(issue); }
+  }));
+  setTimeout(()=>document.addEventListener('click',function off(e){if(!menu.contains(e.target)){menu.remove();document.removeEventListener('click',off);}}),0);
+}
+async function openSprintMenu(btn, issue){
+  document.querySelectorAll('.stmenu').forEach(m=>m.remove());
+  const project=issue.split('-')[0];
+  const r=await api('/sprints?project='+encodeURIComponent(project));
+  const sprints=r.ok?await r.json():[];
+  const menu=document.createElement('div'); menu.className='stmenu';
+  menu.innerHTML='<div class="sh">Move to sprint</div>'+(sprints.length?sprints.map(s=>`<div class="si" data-sid="${s.id}">${esc(s.name)} <span class="k" style="color:var(--faint)">${esc(s.state)}</span></div>`).join(''):'<div class="sh">no active/future sprints</div>');
+  document.body.appendChild(menu);
+  const bb=btn.getBoundingClientRect(); menu.style.left=Math.min(bb.left,window.innerWidth-220)+'px'; menu.style.top=(bb.bottom+4)+'px';
+  menu.querySelectorAll('.si[data-sid]').forEach(el=>el.addEventListener('click',async()=>{
+    menu.remove();
+    const rr=await api('/sprint/assign',{method:'POST',body:JSON.stringify({issue,sprint_id:+el.dataset.sid})});
+    alert(rr.ok?'Moved to sprint ✓':'Failed: '+await rr.text());
+  }));
+  setTimeout(()=>document.addEventListener('click',function off(e){if(!menu.contains(e.target)){menu.remove();document.removeEventListener('click',off);}}),0);
+}
+
+// composer: send + drafts
+$('#body').addEventListener('input',saveDraft);
+$('#sendform').addEventListener('submit',async e=>{
+  e.preventDefault();const body=$('#body').value.trim();if(!body)return;
+  const mentions=MENTIONS.filter(m=>body.includes('@'+m.text));
+  await api('/send',{method:'POST',body:JSON.stringify({channel:$('#channel').value.trim(),body,mentions})});
+  $('#body').value='';MENTIONS=[];closeMentions();saveDraft();loadChannel();
+});
+
+// emoji picker
+const EMOJI='😀 😂 🙂 😉 😍 🤔 👍 👎 🙏 🎉 🔥 🚀 ✅ ❌ ⚠️ 💡 👀 💯 ❤️ 😅 😎 🤝 📌 🐛 🕷️ ⏳ 🟢 🔴'.split(' ');
+$('#palette').innerHTML=EMOJI.map(e=>`<span>${e}</span>`).join('');
+$('#emojibtn').addEventListener('click',()=>$('#palette').classList.toggle('hidden'));
+$('#palette').querySelectorAll('span').forEach(s=>s.addEventListener('click',()=>{
+  const b=$('#body');b.value+=s.textContent;b.focus();saveDraft();$('#palette').classList.add('hidden');
+}));
+document.addEventListener('click',e=>{if(!e.target.closest('#palette')&&e.target.id!=='emojibtn')$('#palette').classList.add('hidden');});
+
+// quick switcher (Cmd/Ctrl-K)
+let swSel=0, swItems=[];
+function openSwitcher(){ ensureProjects(); $('#overlay').classList.remove('hidden'); $('#swinput').value=''; renderSwitcher(''); $('#swinput').focus(); }
+function closeSwitcher(){ $('#overlay').classList.add('hidden'); }
+function renderSwitcher(q){
+  q=q.toLowerCase();
+  swItems=PROJECTS.filter(p=>!q||p.key.toLowerCase().includes(q)||p.name.toLowerCase().includes(q)).slice(0,30);
+  swSel=0;
+  $('#swresults').innerHTML=swItems.length?swItems.map((p,i)=>`<div class="r${i===0?' sel':''}" data-i="${i}"><span class="k">${esc(p.key)}</span><span class="n">${esc(p.name)}</span></div>`).join(''):'<div class="r"><span class="n" style="color:var(--faint)">No match</span></div>';
+  $('#swresults').querySelectorAll('.r[data-i]').forEach(el=>el.addEventListener('click',()=>pickSwitcher(+el.dataset.i)));
+}
+function pickSwitcher(i){const p=swItems[i];if(!p)return;closeSwitcher();openChannel(p.key,true);}
+$('#switchbtn').addEventListener('click',openSwitcher);
+$('#swinput').addEventListener('input',e=>renderSwitcher(e.target.value));
+$('#swinput').addEventListener('keydown',e=>{
+  if(e.key==='Escape')closeSwitcher();
+  else if(e.key==='Enter'){e.preventDefault();pickSwitcher(swSel);}
+  else if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();swSel=Math.max(0,Math.min(swItems.length-1,swSel+(e.key==='ArrowDown'?1:-1)));$('#swresults').querySelectorAll('.r[data-i]').forEach((el,i)=>el.classList.toggle('sel',i===swSel));}
+});
+$('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeSwitcher();});
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();if($('#app').classList.contains('hidden'))return;openSwitcher();}
+});
+
+// ---- Tier 2: saved items, status, DND, channel browser --------------------
+async function loadSaved(){ try{const r=await api('/saved');if(r.ok)SAVED=new Set(await r.json());}catch(e){} }
+
+async function loadState(){
+  try{const r=await api('/state');if(r.ok)STATE=await r.json();}catch(e){}
+  renderState();
+}
+function renderState(){
+  const label=((STATE.emoji||'')+' '+(STATE.text||'')).trim();
+  $('#statuschip').textContent=label||'＋ Set status';
+  $('#dndbtn').classList.toggle('on',!!STATE.dnd);
+  $('#dash').href=SITE?SITE+'/jira/dashboards':'#';
+}
+async function saveState(){ await api('/state',{method:'POST',body:JSON.stringify(STATE)}); renderState(); }
+$('#statuschip').addEventListener('click',async()=>{
+  const cur=((STATE.emoji||'')+' '+(STATE.text||'')).trim();
+  const v=prompt('Set your status — start with an emoji, e.g. "🎧 heads down". Blank clears it.',cur);
+  if(v===null)return;
+  const t=v.trim();
+  const m=t.match(/^(\p{Extended_Pictographic}(?:‍\p{Extended_Pictographic}|[︀-️])*)\s*(.*)$/u);
+  STATE.emoji=m?m[1]:null; STATE.text=(m?m[2]:t)||null;
+  await saveState();
+});
+$('#dndbtn').addEventListener('click',async()=>{ STATE.dnd=!STATE.dnd; await saveState(); });
+
+// channel browser / saved view share the #chanlist panel
+$('#chansbtn').addEventListener('click',async()=>{
+  const cl=$('#chanlist');
+  if(cl.style.display==='flex'&&cl.dataset.mode==='channels'){cl.style.display='none';cl.dataset.mode='';return;}
+  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='channels';
+  cl.innerHTML='<div class="pmuted">Loading channels…</div>';
+  const r=await api('/channels');
+  if(!r.ok){cl.innerHTML='<div class="pmuted">'+esc(await r.text())+'</div>';return;}
+  const chs=await r.json();
+  if(!chs.length){cl.innerHTML='<div class="pmuted">No channels yet — open a project or send a message.</div>';return;}
+  // group by the first path segment into hierarchical sections
+  const groups={};
+  chs.forEach(c=>{const seg=c.channel.split(' / ')[0];(groups[seg]=groups[seg]||[]).push(c);});
+  const names=Object.keys(groups).sort((a,b)=>{
+    const sa=groups[a].some(c=>c.starred), sb=groups[b].some(c=>c.starred);
+    return (sb-sa)||a.localeCompare(b);
+  });
+  const row=(c,nested)=>{const tail=c.channel.slice(c.channel.split(' / ')[0].length).replace(/^ \/ /,'');
+    return `<div class="crow${c.archived?' arch':''}${nested?' nested':''}${c.unread>0?' unread':''}" data-ch="${esc(c.channel)}">
+      <span class="st${c.starred?' on':''}" data-ch="${esc(c.channel)}" data-on="${c.starred?1:0}" title="Star channel">${c.starred?'★':'☆'}</span>
+      <span class="cn">${c.private?'🔒 ':''}${esc(nested?(tail||c.channel):c.channel)}</span>${c.unread>0?`<span class="ubadge">${c.unread}</span>`:''}<span class="cc">${c.count}</span>
+      <span class="ar" data-ch="${esc(c.channel)}" data-on="${c.archived?1:0}" title="Archive">${c.archived?'unarchive':'archive'}</span>
+    </div>`;};
+  cl.innerHTML=names.map(seg=>{
+    const rows=groups[seg].sort((a,b)=>(b.starred-a.starred)||a.channel.localeCompare(b.channel));
+    const sectioned=rows.length>1||rows[0].channel!==seg;
+    return (sectioned?`<div class="csec">${esc(seg)}</div>`:'')+rows.map(c=>row(c,sectioned)).join('');
+  }).join('');
+  cl.querySelectorAll('.crow').forEach(row=>row.addEventListener('click',e=>{
+    if(e.target.classList.contains('st')||e.target.classList.contains('ar'))return;
+    cl.style.display='none';cl.dataset.mode='';openChannel(row.dataset.ch,false);
+  }));
+  cl.querySelectorAll('.st').forEach(st=>st.addEventListener('click',async e=>{
+    e.stopPropagation();const on=st.dataset.on==='1';
+    await api('/star',{method:'POST',body:JSON.stringify({channel:st.dataset.ch,on:!on})});
+    st.dataset.on=on?'0':'1';st.classList.toggle('on',!on);st.textContent=on?'☆':'★';
+  }));
+  cl.querySelectorAll('.ar').forEach(ar=>ar.addEventListener('click',async e=>{
+    e.stopPropagation();const on=ar.dataset.on==='1';
+    await api('/archive',{method:'POST',body:JSON.stringify({channel:ar.dataset.ch,on:!on})});
+    ar.dataset.on=on?'0':'1';ar.textContent=on?'archive':'unarchive';ar.closest('.crow').classList.toggle('arch',!on);
+  }));
+});
+$('#savedbtn').addEventListener('click',async()=>{
+  const cl=$('#chanlist');
+  if(cl.style.display==='flex'&&cl.dataset.mode==='saved'){cl.style.display='none';cl.dataset.mode='';return;}
+  await loadSaved();
+  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='saved';
+  const items=[...SAVED].sort();
+  cl.innerHTML=items.length?items.map(k=>`<div class="crow">
+      <span class="st on">★</span>
+      <span class="cn"><a href="${esc(permalink(k))}" target="_blank" rel="noopener">${esc(k)}</a></span>
+      <span class="ar" data-k="${esc(k)}" title="Remove from saved">remove</span>
+    </div>`).join(''):'<div class="pmuted">No saved items yet — click ☆ on a conversation to save it.</div>';
+  cl.querySelectorAll('.ar[data-k]').forEach(b=>b.addEventListener('click',async()=>{
+    await api('/save',{method:'POST',body:JSON.stringify({issue:b.dataset.k,on:false})});
+    SAVED.delete(b.dataset.k);b.closest('.crow').remove();
+  }));
+});
+
+// ---- Tier 3: real-time (live delivery, presence, typing) ------------------
+function connectWS(){
+  if(WS&&(WS.readyState===0||WS.readyState===1))return;
+  const proto=location.protocol==='https:'?'wss':'ws';
+  let sock; try{sock=new WebSocket(`${proto}://${location.host}/ws`);}catch(e){return;}
+  WS=sock;
+  sock.onopen=()=>{WS_RETRY=0;};
+  sock.onmessage=ev=>{
+    let m; try{m=JSON.parse(ev.data);}catch(e){return;}
+    if(m.type==='message'){ if(m.channel===CURCH) scheduleReload(); }
+    else if(m.type==='presence'){ renderPresence(m.users||[]); }
+    else if(m.type==='availability'){ loadAvailability(); }
+    else if(m.type==='notify'){ loadNotifications(); }
+    else if(m.type==='typing'){ if(m.channel===CURCH && m.who!==MENAME) showTyping(m.who); }
+  };
+  sock.onclose=()=>{ WS=null; if($('#app').classList.contains('hidden'))return;
+    WS_RETRY=Math.min(WS_RETRY+1,6); setTimeout(connectWS, 500*Math.pow(2,WS_RETRY)); };
+  sock.onerror=()=>{ try{sock.close();}catch(e){} };
+}
+// debounce live reloads so a burst of events costs one fetch
+let reloadT=null;
+function scheduleReload(){ clearTimeout(reloadT); reloadT=setTimeout(loadChannel,250); }
+
+function renderPresence(users){
+  const el=$('#pres'); if(!users.length){el.innerHTML='';return;}
+  const names=users.map(u=>u.display);
+  const shown=names.slice(0,3).join(', ')+(names.length>3?` +${names.length-3}`:'');
+  el.innerHTML=`<span class="dot"></span><span class="pn">${esc(shown)}</span>`;
+  el.title=`Here now: ${names.join(', ')}`;
+}
+function showTyping(who){
+  $('#typing').textContent=`${who} is typing…`;
+  clearTimeout(typingClear); typingClear=setTimeout(()=>{$('#typing').textContent='';},3500);
+}
+// tell peers we're typing (throttled to ~2s)
+$('#body').addEventListener('input',()=>{
+  const now=Date.now();
+  if(WS&&WS.readyState===1&&CURCH&&now-lastTyping>2000){
+    lastTyping=now; try{WS.send(JSON.stringify({type:'typing',channel:CURCH}));}catch(e){}
+  }
+});
+
+// reactions: add-emoji popover + mark the open channel read
+function openRxPal(rx){
+  const ex=rx.querySelector('.rxpal'); if(ex){ex.remove();return;}
+  const issue=rx.dataset.issue;
+  const pal=document.createElement('div'); pal.className='rxpal';
+  pal.innerHTML=EMOJI.map(e=>`<span>${e}</span>`).join('');
+  rx.appendChild(pal);
+  pal.querySelectorAll('span').forEach(s=>s.addEventListener('click',async()=>{
+    await api('/react',{method:'POST',body:JSON.stringify({issue,shortcode:s.textContent,on:true})});
+    loadChannel();
+  }));
+}
+function markRead(){ if(!CURCH)return; try{api('/markread',{method:'POST',body:JSON.stringify({channel:CURCH,ts:Math.floor(Date.now()/1000)+3})});}catch(e){} }
+
+// full-text search over message bodies, results in the side panel
+$('#searchbtn').addEventListener('click',async()=>{
+  const q=prompt('Search messages:'); if(q===null||!q.trim())return;
+  const cl=$('#chanlist');
+  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='search';
+  cl.innerHTML='<div class="pmuted">Searching…</div>';
+  const r=await api('/search?q='+encodeURIComponent(q.trim()));
+  if(!r.ok){cl.innerHTML='<div class="pmuted">'+esc(await r.text())+'</div>';return;}
+  const hits=await r.json();
+  cl.innerHTML=hits.length?hits.map(h=>`<div class="shit" data-ch="${esc(h.channel)}"><span class="sc">${esc(h.issue_key)} · ${esc(h.channel)}</span><div class="ss">${esc(h.snippet)}</div></div>`).join(''):`<div class="pmuted">No matches for “${esc(q.trim())}”.</div>`;
+  cl.querySelectorAll('.shit').forEach(el=>el.addEventListener('click',()=>{cl.style.display='none';cl.dataset.mode='';openChannel(el.dataset.ch,false);}));
+});
+
+// file upload: attach to a new conversation in the current channel
+$('#attachbtn').addEventListener('click',()=>$('#fileinput').click());
+$('#fileinput').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  if(f.size>25*1024*1024){alert('File too large (max 25 MB).');e.target.value='';return;}
+  const ch=CURCH||$('#channel').value.trim();
+  if(!ch){alert('Open or name a channel first.');e.target.value='';return;}
+  const fd=new FormData(); fd.append('channel',ch); fd.append('caption',$('#body').value.trim()); fd.append('file',f);
+  const r=await fetch('/upload',{method:'POST',credentials:'same-origin',body:fd});
+  e.target.value='';
+  if(!r.ok){alert('Upload failed: '+await r.text());return;}
+  $('#body').value='';MENTIONS=[];saveDraft();loadChannel();
+});
+
+// @mention autocomplete in the composer
+function closeMentions(){ $('#mentions').classList.add('hidden'); MN_ITEMS=[]; }
+function mentionCtx(){
+  const inp=$('#body'), pos=inp.selectionStart, val=inp.value.slice(0,pos), at=val.lastIndexOf('@');
+  if(at<0) return null;
+  if(at>0 && !/\s/.test(val[at-1])) return null;        // '@' must start a word
+  const frag=val.slice(at+1);
+  if(/\n/.test(frag)||frag.length>40) return null;
+  return {at, query:frag};
+}
+function renderMentions(){
+  const el=$('#mentions');
+  if(!MN_ITEMS.length){closeMentions();return;}
+  el.classList.remove('hidden');
+  el.innerHTML=MN_ITEMS.map((u,i)=>`<div class="mi${i===MN_SEL?' sel':''}" data-i="${i}"><span class="ma">${esc(initials(u.display))}</span>${esc(u.display)}</div>`).join('');
+  el.querySelectorAll('.mi').forEach(d=>d.addEventListener('mousedown',e=>{e.preventDefault();pickMention(+d.dataset.i);}));
+}
+function pickMention(i){
+  const u=MN_ITEMS[i]; if(!u)return;
+  const inp=$('#body'), pos=inp.selectionStart, before=inp.value.slice(0,MN_AT), after=inp.value.slice(pos), ins='@'+u.display+' ';
+  inp.value=before+ins+after;
+  const np=before.length+ins.length; inp.setSelectionRange(np,np);
+  if(!MENTIONS.some(m=>m.id===u.id)) MENTIONS.push({text:u.display,id:u.id});
+  closeMentions(); inp.focus(); saveDraft();
+}
+function updateMentions(){
+  const ctx=mentionCtx();
+  if(!ctx||ctx.query.length<1){ closeMentions(); return; }
+  clearTimeout(mnTimer);
+  mnTimer=setTimeout(async()=>{
+    let r; try{r=await api('/users?q='+encodeURIComponent(ctx.query));}catch(e){return;}
+    if(!r.ok){closeMentions();return;}
+    MN_ITEMS=await r.json(); MN_SEL=0; MN_AT=ctx.at; renderMentions();
+  },150);
+}
+$('#body').addEventListener('input',updateMentions);
+$('#body').addEventListener('keydown',e=>{
+  if($('#mentions').classList.contains('hidden'))return;
+  if(e.key==='ArrowDown'){e.preventDefault();MN_SEL=Math.min(MN_ITEMS.length-1,MN_SEL+1);renderMentions();}
+  else if(e.key==='ArrowUp'){e.preventDefault();MN_SEL=Math.max(0,MN_SEL-1);renderMentions();}
+  else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();pickMention(MN_SEL);}
+  else if(e.key==='Escape'){e.preventDefault();closeMentions();}
+});
+
+// JIRA status chip + workflow transitions
+function statusClass(s){s=(s||'').toLowerCase();if(/done|closed|resolved|complete/.test(s))return'done';if(/progress|review|doing|started|dev/.test(s))return'prog';return'todo';}
+async function openStatusMenu(btn,issue){
+  document.querySelectorAll('.stmenu').forEach(m=>m.remove());
+  const r=await api('/transitions?issue='+encodeURIComponent(issue));
+  const targets=r.ok?await r.json():[];
+  const menu=document.createElement('div'); menu.className='stmenu';
+  menu.innerHTML='<div class="sh">Move to</div>'+(targets.length?targets.map(t=>`<div class="si" data-to="${esc(t)}">${esc(t)}</div>`).join(''):'<div class="sh">no transitions available</div>');
+  document.body.appendChild(menu);
+  const bb=btn.getBoundingClientRect();
+  menu.style.left=Math.min(bb.left,window.innerWidth-180)+'px'; menu.style.top=(bb.bottom+4)+'px';
+  menu.querySelectorAll('.si').forEach(el=>el.addEventListener('click',async()=>{
+    menu.remove();
+    const rr=await api('/transition',{method:'POST',body:JSON.stringify({issue,to:el.dataset.to})});
+    if(!rr.ok){alert('Transition failed: '+await rr.text());return;}
+    loadChannel();
+  }));
+  setTimeout(()=>document.addEventListener('click',function off(e){if(!menu.contains(e.target)){menu.remove();document.removeEventListener('click',off);}}),0);
+}
+
+// Suggested starter channels (see docs/STARTER_CHANNELS.md)
+const STARTERS=[
+  {sec:'Company-wide',items:['general','announcements','random','help','kudos']},
+  {sec:'Engineering',items:['eng / backend','eng / frontend','eng / deploys','eng / incidents','eng / code-review']},
+  {sec:'Teams',items:['product / roadmap','design / reviews','marketing / campaigns','sales / pipeline','support / tickets']},
+  {sec:'Process',items:['oncall','incidents','releases','all-hands']},
+  {sec:'Projects',items:['proj / onboarding']},
+  {sec:'Social',items:['social / watercooler','social / food','social / events']},
+];
+$('#startersbtn').addEventListener('click',()=>{
+  const cl=$('#chanlist');
+  if(cl.style.display==='flex'&&cl.dataset.mode==='starter'){cl.style.display='none';cl.dataset.mode='';return;}
+  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='starter';
+  cl.innerHTML='<div class="starthint">Pick a channel to start it — the name becomes its JIRA board. Post the first message to create it.</div>'
+    +STARTERS.map(g=>`<div class="csec">${esc(g.sec)}</div>`+g.items.map(n=>`<div class="crow" data-ch="${esc(n)}"><span class="cn">${esc(n)}</span><span class="ar" data-ch="${esc(n)}">open ›</span></div>`).join('')).join('');
+  cl.querySelectorAll('.crow').forEach(row=>row.addEventListener('click',()=>{
+    cl.style.display='none';cl.dataset.mode='';
+    openChannel(row.dataset.ch,false);
+    const b=$('#body'); if(b){b.focus();}
+  }));
+});
+
+// First-run onboarding: if the workspace has no channels yet, offer to create
+// a starter set (each channel gets one welcome conversation).
+const DEFAULT_SEED=[
+  {channel:'general', body:'👋 Welcome to *general* — company-wide chatter and open questions. Every message here becomes a JIRA issue; replies are comments.'},
+  {channel:'announcements', body:'📣 *announcements* — company and leadership broadcasts. Best kept read-mostly.'},
+  {channel:'random', body:'🎲 *random* — the non-business watercooler. Tip: point social channels at their own JIRA project so chatter stays out of work reporting.'},
+  {channel:'help', body:'🆘 *help* — "how do I… / who owns…". Thread the answers to keep it tidy.'},
+  {channel:'eng / deploys', body:'🚀 *eng / deploys* — deploy coordination and release notes.'},
+  {channel:'eng / incidents', body:'🚨 *eng / incidents* — live incident coordination; keep postmortems as threads.'},
+  {channel:'product / roadmap', body:'🗺️ *product / roadmap* — what we are building and why.'},
+  {channel:'proj / onboarding', body:'📦 *proj / onboarding* — an example initiative channel. Archive it when the project wraps.'},
+];
+async function firstRun(){
+  let chs;
+  try{ const r=await api('/channels'); if(!r.ok)return; chs=await r.json(); }catch(e){ return; }
+  if(chs.length) return; // workspace already has channels — don't nag
+  const cl=$('#chanlist');
+  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='firstrun';
+  cl.innerHTML='<div class="starthint">Welcome to <b>weaveN</b> — your workspace is empty. Create a starter set of channels to get going (each becomes a JIRA board). Uncheck any you don’t want.</div>'
+    +DEFAULT_SEED.map((d,i)=>`<label class="crow" style="cursor:pointer"><input type="checkbox" class="seedck" data-i="${i}" checked> <span class="cn">${esc(d.channel)}</span></label>`).join('')
+    +'<div style="padding:8px"><button id="seedgo" style="border:0;background:var(--accent);color:#fff;border-radius:7px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer">Create selected channels</button></div>';
+  $('#seedgo').addEventListener('click',async()=>{
+    const picks=[...cl.querySelectorAll('.seedck:checked')].map(c=>DEFAULT_SEED[+c.dataset.i]);
+    if(!picks.length){cl.style.display='none';cl.dataset.mode='';return;}
+    const go=$('#seedgo'); go.disabled=true; go.textContent='Creating…';
+    const rr=await api('/seed',{method:'POST',body:JSON.stringify({channels:picks})});
+    cl.style.display='none'; cl.dataset.mode='';
+    if(rr.ok){ const res=await rr.json(); if(res.created&&res.created.length) openChannel(res.created[0],false); }
+    else alert('Could not create channels: '+await rr.text());
+  });
+}
+
+// channel privacy + membership settings
+$('#chanacl').addEventListener('click',openAclPanel);
+async function openAclPanel(){
+  const ch=CURCH||$('#channel').value.trim(); if(!ch){alert('Open a channel first.');return;}
+  const cl=$('#chanlist');
+  if(cl.style.display==='flex'&&cl.dataset.mode==='acl'){cl.style.display='none';cl.dataset.mode='';return;}
+  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='acl';
+  cl.innerHTML='<div class="pmuted" style="padding:8px">Loading…</div>';
+  const r=await api('/channel/acl?channel='+encodeURIComponent(ch));
+  if(!r.ok){cl.innerHTML='<div class="pmuted" style="padding:8px">'+esc(await r.text())+'</div>';return;}
+  renderAcl(ch, await r.json());
+}
+function renderAcl(ch, acl){
+  const cl=$('#chanlist');
+  let html=`<div class="csec">Settings — ${esc(ch)}</div>`
+    +`<label class="crow" style="cursor:pointer"><input type="checkbox" id="privck" ${acl.private?'checked':''}> <span class="cn">🔒 Private channel</span></label>`;
+  if(acl.private){
+    html+='<div class="csec">Members</div>'
+      +(acl.members.length?acl.members.map(m=>`<div class="crow"><span class="cn">${esc(m.display||m.account)}</span><span class="ar" data-acc="${esc(m.account)}">remove</span></div>`).join(''):'<div class="pmuted" style="padding:4px 8px">No members yet.</div>')
+      +'<div class="csec">Add member</div><div style="padding:4px 8px"><input id="memq" placeholder="Search people…" autocomplete="off" style="width:100%;box-sizing:border-box"><div id="memres"></div></div>';
+  } else {
+    html+='<div class="starthint">Public — everyone in the workspace can see and post here. Turn on to restrict access and manage members.</div>';
+  }
+  html+='<div class="csec">Incoming webhooks</div><div id="whsec" style="padding:0 2px"></div><div style="padding:6px 8px"><button id="whnew" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer">+ Create webhook</button></div>';
+  cl.innerHTML=html;
+  $('#privck').addEventListener('change',async e=>{
+    const rr=await api('/channel/private',{method:'POST',body:JSON.stringify({channel:ch,private:e.target.checked})});
+    if(!rr.ok){alert('Failed: '+await rr.text()); e.target.checked=!e.target.checked; return;}
+    renderAcl(ch, await rr.json());
+  });
+  if(acl.private){
+    cl.querySelectorAll('.ar[data-acc]').forEach(b=>b.addEventListener('click',async()=>{
+      const rr=await api('/channel/member',{method:'POST',body:JSON.stringify({channel:ch,account:b.dataset.acc,on:false})});
+      if(rr.ok) renderAcl(ch, await rr.json()); else alert('Failed: '+await rr.text());
+    }));
+    const q=$('#memq'); let t=null;
+    q.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(async()=>{
+      const v=q.value.trim(); const res=$('#memres'); if(v.length<1){res.innerHTML='';return;}
+      const rr=await api('/users?q='+encodeURIComponent(v)); if(!rr.ok)return;
+      const users=await rr.json();
+      res.innerHTML=users.map(u=>`<div class="crow" data-acc="${esc(u.id)}" data-dn="${esc(u.display)}"><span class="cn">${esc(u.display)}</span><span class="ar">add</span></div>`).join('');
+      res.querySelectorAll('.crow').forEach(row=>row.addEventListener('click',async()=>{
+        const rr2=await api('/channel/member',{method:'POST',body:JSON.stringify({channel:ch,account:row.dataset.acc,display:row.dataset.dn,on:true})});
+        if(rr2.ok){ q.value=''; res.innerHTML=''; renderAcl(ch, await rr2.json()); }
+      }));
+    },200); });
+  }
+  $('#whnew').addEventListener('click',async()=>{
+    const label=prompt('Webhook name (e.g. "CI", "Alerts"):','webhook'); if(label===null)return;
+    const rr=await api('/webhook',{method:'POST',body:JSON.stringify({channel:ch,label})});
+    if(!rr.ok){alert('Failed: '+await rr.text());return;}
+    loadWebhooks(ch);
+  });
+  loadWebhooks(ch);
+}
+async function loadWebhooks(ch){
+  const el=$('#whsec'); if(!el)return;
+  const r=await api('/webhooks?channel='+encodeURIComponent(ch)); if(!r.ok){el.innerHTML='';return;}
+  const hooks=await r.json();
+  if(!hooks.length){ el.innerHTML='<div class="pmuted" style="padding:4px 8px;font-size:11px">None. External systems POST {"text":"…"} to a hook URL to post here.</div>'; return; }
+  el.innerHTML=hooks.map(h=>`<div class="crow"><span class="cn">${esc(h.label)} <span style="color:var(--faint);font-size:11px">${esc(location.origin+h.url)}</span></span><span class="ar" data-copy="${esc(location.origin+h.url)}">copy</span><span class="ar" data-del="${esc(h.token)}">delete</span></div>`).join('');
+  el.querySelectorAll('.ar[data-copy]').forEach(b=>b.addEventListener('click',async()=>{ const ok=await copyText(b.dataset.copy); if(!ok)prompt('Copy URL:',b.dataset.copy); }));
+  el.querySelectorAll('.ar[data-del]').forEach(b=>b.addEventListener('click',async()=>{ await api('/webhook/delete',{method:'POST',body:JSON.stringify({token:b.dataset.del})}); loadWebhooks(ch); }));
+}
+
+(async()=>{const s=await me();if(s)showApp(s);else showLogin();})();
+</script>
+</body>
+</html>

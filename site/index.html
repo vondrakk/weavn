@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weavn — The Connected Workflow Fabric</title>
+<meta name="description" content="Weavn is team chat whose system of record is JIRA. Every conversation is a ticket; every ticket is a conversation — the same data, two faces. Seamless integration, no friction.">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://weavn.io/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Weavn — The Connected Workflow Fabric">
+<meta property="og:description" content="Team chat whose system of record is JIRA. Chat sees tickets as conversations; JIRA sees conversations as tickets — the same data, two faces.">
+<meta property="og:url" content="https://weavn.io/">
+<meta property="og:image" content="https://weavn.io/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0B1120">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- OPEN-SOURCE BANNER -->
+<div class="topbar">
+  <a href="https://github.com/vondrakk/weavn" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.03.08-2.13 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.93.08 2.13.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+    <b>Weavn is open source</b> — clone us on GitHub <span class="arr">→</span>
+  </a>
+</div>
+
+<!-- NAV -->
+<header class="nav" id="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="/" aria-label="Weavn home">
+      <img src="/assets/logo-mark.svg" alt="">
+      <span>weavn<span class="dot">.io</span></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#about">About</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="#how">See how it works</a>
+      <a class="btn btn-primary" href="#access">Request access</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"><img src="/assets/weave.svg" alt=""></div>
+  <div class="container">
+    <span class="eyebrow">The Connected Workflow Fabric</span>
+    <h1>Team chat that <span class="grad-text">lives in JIRA</span>.</h1>
+    <p class="lede">Weavn is a Slack-like chat app whose system of record is JIRA. People in chat see tickets as conversations; people in JIRA see conversations as tickets — the same data, two faces. Seamless integration. No friction.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary btn-lg" href="#access">Request early access</a>
+      <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+    </div>
+    <p class="hero-note">No new system of record. Your conversations stay in the JIRA you already own.</p>
+
+    <!-- product mock: two faces of the same data -->
+    <div class="mock reveal">
+      <div class="sync" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a8 8 0 0 1 13.7-5.7L20 6"/><path d="M20 3v3h-3"/><path d="M20 15a8 8 0 0 1-13.7 5.7L4 18"/><path d="M4 21v-3h3"/></svg>
+      </div>
+      <div class="mock-grid">
+        <div class="card">
+          <div class="card-head">#payments-team <span class="pill chat">Chat</span></div>
+          <div class="card-body">
+            <div class="msg"><div class="avatar">DK</div><div><span class="who">Dana K.</span><span class="when">9:41</span><div class="txt">Checkout is throwing 500s on retries — can someone take this?</div></div></div>
+            <div class="msg"><div class="avatar b">MR</div><div><span class="who">Miguel R.</span><span class="when">9:43</span><div class="txt">On it. Looks like the idempotency key expires too early. Fix incoming.</div></div></div>
+            <div class="msg"><div class="avatar b">AO</div><div><span class="who">Amara O.</span><span class="when">9:52</span><div class="txt">Deployed to staging — retries are clean now. 🎉</div></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">PAY board <span class="pill jira">JIRA</span></div>
+          <div class="card-body">
+            <div class="issue-row"><span class="key">PAY-482</span><span class="issue-sum">Checkout 500s on retries</span><span class="status done">Done</span></div>
+            <div class="issue-row"><span class="key">PAY-483</span><span class="issue-sum">Idempotency key TTL too short</span><span class="status prog">In progress</span></div>
+            <div class="issue-row"><span class="key">PAY-471</span><span class="issue-sum">Add retry dashboards</span><span class="status todo">To do</span></div>
+            <div class="issue-row"><span class="key">PAY-460</span><span class="issue-sum">Rotate webhook secrets</span><span class="status todo">To do</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="band" id="features">
+  <div class="container">
+    <div class="band-head reveal">
+      <span class="eyebrow">Why Weavn</span>
+      <h2>One conversation. <span class="grad-text">Two faces of the truth.</span></h2>
+      <p>Chat and tickets have always been two tools fighting over the same work. Weavn makes them one surface, kept in sync both ways — so nothing is copied, re-typed, or lost between them.</p>
+    </div>
+    <div class="bento">
+      <div class="feature span2 reveal">
+        <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6a8 8 0 0 1 16 0"/><path d="M20 18a8 8 0 0 1-16 0"/><path d="M18 4v3h-3"/><path d="M6 20v-3h3"/></svg></div>
+        <h3>Bidirectional truth</h3>
+        <p>Send a message, it becomes a JIRA issue or comment. Move a ticket in JIRA, it updates in chat. There is no "integration lag" because there is no copy — chat and JIRA are two views of exactly the same records.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg></div>
+        <h3>Channels are Boards</h3>
+        <p>A channel is a filtered JIRA board; a thread is an issue; a reply is a comment. The shapes line up one-to-one, so every conversation gets a real lifecycle.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
+        <h3>Real-time sync</h3>
+        <p>Messages, edits, reactions, read state and status changes propagate live in both directions — the moment they happen, on either side.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v5c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>Encrypted DMs</h3>
+        <p>Direct messages live in an encrypted vault, separate from the ticket store — private conversations stay private, team work stays on the board.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v3a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5Z"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></div>
+        <h3>SSO on day one</h3>
+        <p>Sign in with your identity provider over OIDC. Every message is written to JIRA as the real person who sent it — authorship and permissions carry through.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg></div>
+        <h3>Agile, built in</h3>
+        <p>Sprints and backlog refinement are first-class in the chat interface — groom and plan where the conversation already is, not in a separate tool.</p>
+      </div>
+      <div class="feature span2 reveal">
+        <div class="f-ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18 22 12 16 6"/><path d="M8 6 2 12l6 6"/><path d="m13 4-2 16"/></svg></div>
+        <h3>Rust, end to end</h3>
+        <p>Backend and client are written in Rust — fast, memory-safe, and lean. Weavn adds a thin, auditable projection layer on top of your JIRA; it is not another database quietly becoming your source of truth.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="band" id="how">
+  <div class="container">
+    <div class="band-head center reveal">
+      <span class="eyebrow">How it works</span>
+      <h2>Connected in minutes, not a migration.</h2>
+      <p>Weavn connects to the JIRA your team already runs. Nothing moves; your existing projects simply gain a chat face.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <h3>Connect your JIRA</h3>
+        <p>Sign in through your identity provider and authorize Weavn against your JIRA site. Permissions and identities come straight from your org.</p>
+      </div>
+      <div class="step reveal">
+        <h3>Discover &amp; backfill</h3>
+        <p>On first connect, Weavn discovers your projects and does a bounded backfill, so your channels open with real history — not an empty room.</p>
+      </div>
+      <div class="step reveal">
+        <h3>Just chat</h3>
+        <p>Talk like it's Slack. Every top-level message becomes an issue, every reply a comment, every channel a board — kept in sync, both ways, forever.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TWO FACES SPLIT -->
+<section class="band" id="model">
+  <div class="container split">
+    <div class="reveal">
+      <span class="eyebrow">The mapping</span>
+      <h2 style="font-size:clamp(26px,4vw,40px)">Slack and JIRA are the <span class="grad-text">same shape</span>.</h2>
+      <p style="margin-top:16px;color:var(--muted);font-size:17px">A Slack thread is two levels deep: a root message and a flat list of replies. A JIRA issue is two levels deep: the issue and a flat list of comments. Weavn snaps them together with no nesting tricks.</p>
+      <ul>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><b>Channel ↔ Board</b> — a filtered view over issues stamped with a stable channel ID.</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><b>Thread ↔ Issue</b> — summary is the first line, body is the message.</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><b>Reply ↔ Comment</b> — a flat, chronological list, exactly like chat.</span></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><b>Person ↔ JIRA user</b> — authorship and permissions are never faked.</span></li>
+      </ul>
+    </div>
+    <div class="card reveal" aria-hidden="true">
+      <div class="card-head">PAY-482 · Checkout 500s on retries <span class="pill jira">JIRA</span></div>
+      <div class="card-body">
+        <div class="msg"><div class="avatar">DK</div><div><span class="who">Dana K.</span><span class="when">reported</span><div class="txt">Checkout is throwing 500s on retries — can someone take this?</div></div></div>
+        <div class="issue-row" style="border-top:1px dashed var(--border);margin-top:4px;padding-top:12px"><span class="key">comment</span><span class="issue-sum">Miguel R. — idempotency key expires too early</span></div>
+        <div class="issue-row"><span class="key">comment</span><span class="issue-sum">Amara O. — deployed to staging, retries clean</span></div>
+        <div class="issue-row"><span class="key">status</span><span class="issue-sum">In progress → Done</span><span class="status done">Done</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="band" id="pricing">
+  <div class="container">
+    <div class="band-head center reveal">
+      <span class="eyebrow">Pricing</span>
+      <h2>Simple plans. Your data stays yours.</h2>
+      <p>Weavn is priced per active user. You bring your own JIRA — there are no per-ticket fees and no data lock-in.</p>
+    </div>
+    <div class="prices">
+      <div class="price reveal">
+        <h3>Starter</h3>
+        <div class="amount">$0<span> / user · mo</span></div>
+        <p class="desc">For small teams trying Weavn on an existing JIRA project.</p>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Up to 10 users</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Unlimited channels &amp; threads</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Bidirectional JIRA sync</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Community support</li>
+        </ul>
+        <a class="btn btn-ghost" href="#access">Request access</a>
+      </div>
+      <div class="price featured reveal">
+        <span class="tag">Most popular</span>
+        <h3>Team</h3>
+        <div class="amount">$8<span> / user · mo</span></div>
+        <p class="desc">For product teams running day-to-day work in chat and JIRA together.</p>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Everything in Starter</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>SSO / OIDC &amp; SCIM</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Encrypted DM vault</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Sprints &amp; refinement</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Priority support</li>
+        </ul>
+        <a class="btn btn-primary" href="#access">Request access</a>
+      </div>
+      <div class="price reveal">
+        <h3>Enterprise</h3>
+        <div class="amount">Let's talk</div>
+        <p class="desc">For orgs with compliance, data-residency, and scale requirements.</p>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Everything in Team</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Self-hosted / VPC option</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Audit logs &amp; DLP controls</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Dedicated SLA &amp; onboarding</li>
+        </ul>
+        <a class="btn btn-ghost" href="#access">Contact sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA / ABOUT -->
+<section class="band" id="about">
+  <div class="container">
+    <div class="cta reveal" id="access">
+      <div class="cta-bg"><img src="/assets/weave.svg" alt=""></div>
+      <span class="eyebrow" style="justify-content:center">Early access</span>
+      <h2>Bring your team's chat home to JIRA.</h2>
+      <p>Weavn is in active development by the team at innovai8. Tell us about your JIRA setup and we'll get you into the early-access program.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="mailto:hello@weavn.io?subject=Weavn%20early%20access&body=Team%20size%3A%0AJIRA%20(Cloud%2FData%20Center)%3A%0AWhat%20you're%20hoping%20Weavn%20solves%3A">Request early access</a>
+        <a class="btn btn-ghost btn-lg" href="mailto:hello@weavn.io?subject=Weavn%20question">Talk to us</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt="" style="width:28px;height:28px"><span>weavn<span class="dot">.io</span></span></a>
+        <p>The connected workflow fabric. Team chat whose system of record is JIRA — the same data, two faces.</p>
+      </div>
+      <div class="foot-cols">
+        <div class="foot-col">
+          <h4>Product</h4>
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <a href="#model">The mapping</a>
+          <a href="#pricing">Pricing</a>
+        </div>
+        <div class="foot-col">
+          <h4>Company</h4>
+          <a href="#about">About</a>
+          <a href="mailto:hello@weavn.io">Contact</a>
+          <a href="https://innovai8.io">innovai8</a>
+          <a href="https://github.com/vondrakk/weavn" target="_blank" rel="noopener">GitHub</a>
+        </div>
+        <div class="foot-col">
+          <h4>Legal</h4>
+          <a href="/privacy.html">Privacy</a>
+          <a href="/terms.html">Terms</a>
+        </div>
+        <div class="foot-col">
+          <h4>Get started</h4>
+          <a href="#access">Request access</a>
+          <a href="mailto:hello@weavn.io?subject=Weavn%20demo">Book a demo</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© <span id="yr">2026</span> innovai8 · Weavn</span>
+      <span>Built on JIRA · OIDC · Rust</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // mobile menu
+  var nav = document.getElementById('nav'), tgl = document.getElementById('navToggle');
+  tgl && tgl.addEventListener('click', function(){
+    var open = nav.classList.toggle('open');
+    tgl.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  nav && nav.querySelectorAll('.nav-links a').forEach(function(a){
+    a.addEventListener('click', function(){ nav.classList.remove('open'); tgl.setAttribute('aria-expanded','false'); });
+  });
+  // year
+  document.getElementById('yr').textContent = new Date().getFullYear();
+  // reveal on scroll
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+  }, {rootMargin:'0px 0px -8% 0px', threshold:.08});
+  document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+</script>
+</body>
+</html>

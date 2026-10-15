@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: weavn-gateway
+  namespace: weavn
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # The web client sets an HttpOnly session cookie; keep bodies reasonable.
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [app.weavn.io]
+      secretName: weavn-app-tls
+  rules:
+    - host: app.weavn.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: weavn-gateway, port: { number: 80 } } }

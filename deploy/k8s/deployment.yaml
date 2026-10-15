@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weavn-web
+  namespace: weavn
+  labels: { app.kubernetes.io/name: weavn-web, app.kubernetes.io/part-of: weavn }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/name: weavn-web }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: weavn-web, app.kubernetes.io/part-of: weavn }
+      annotations:
+        # bump on every content change so a rollout picks up new ConfigMaps
+        weavn.io/content-hash: "PLACEHOLDER"
+    spec:
+      containers:
+        - name: nginx
+          image: docker.io/library/nginx:1.27-alpine
+          ports: [{ containerPort: 80 }]
+          resources:
+            requests: { cpu: 10m, memory: 24Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+          readinessProbe:
+            httpGet: { path: /index.html, port: 80 }
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /index.html, port: 80 }
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          volumeMounts:
+            - { name: site,   mountPath: /usr/share/nginx/html,        readOnly: true }
+            - { name: assets, mountPath: /usr/share/nginx/html/assets, readOnly: true }
+            - { name: conf,   mountPath: /etc/nginx/conf.d,            readOnly: true }
+      volumes:
+        - name: site
+          configMap: { name: weavn-site-root }
+        - name: assets
+          configMap: { name: weavn-site-assets }
+        - name: conf
+          configMap: { name: weavn-site-nginx }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weavn-web
+  namespace: weavn
+  labels: { app.kubernetes.io/name: weavn-web, app.kubernetes.io/part-of: weavn }
+spec:
+  selector: { app.kubernetes.io/name: weavn-web }
+  ports:
+    - { name: http, port: 80, targetPort: 80 }

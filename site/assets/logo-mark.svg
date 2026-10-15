@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none" role="img" aria-label="Weavn">
+  <defs>
+    <linearGradient id="wmA" x1="18" y1="92" x2="74" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B1B7D"/>
+      <stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="wmB" x1="50" y1="38" x2="100" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <filter id="wmGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="15" filter="url(#wmGlow)">
+    <!-- left ribbon -->
+    <path d="M24 32 L48 90 L70 38" stroke="url(#wmA)"/>
+    <!-- right ribbon, woven over the left at the centre -->
+    <path d="M50 38 L72 90 L96 32" stroke="url(#wmB)"/>
+  </g>
+</svg>

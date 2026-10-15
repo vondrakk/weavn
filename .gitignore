@@ -1,0 +1,19 @@
+# Rust build output
+/target
+
+# Local prototype state (mock JIRA + projection snapshot, per-working-dir)
+.weavn/
+
+# Secrets — never commit live JIRA credentials
+scripts/jira.env
+*.env
+!*.env.example
+
+# Local deck exports (published as an Artifact, not source)
+decks/
+
+# fetched cluster kubeconfig (do not commit)
+scripts/.vv-k8s.kubeconfig
+
+# Local-only working instructions (not published)
+CLAUDE.md

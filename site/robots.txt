@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://weavn.io/sitemap.xml

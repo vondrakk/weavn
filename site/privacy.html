@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Weavn</title>
+<meta name="description" content="How Weavn handles your data. Your conversations live in the JIRA you already control.">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0B1120">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <a href="https://github.com/vondrakk/weavn" target="_blank" rel="noopener">
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.03.08-2.13 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.93.08 2.13.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+    <b>Weavn is open source</b> — clone us on GitHub <span class="arr">→</span>
+  </a>
+</div>
+
+<header class="nav subhead">
+  <div class="container nav-inner">
+    <a class="brand" href="/" aria-label="Weavn home">
+      <img src="/assets/logo-mark.svg" alt=""><span>weavn<span class="dot">.io</span></span>
+    </a>
+    <div class="nav-cta"><a class="btn btn-ghost" href="/">← Back to site</a></div>
+  </div>
+</header>
+
+<main class="container">
+  <article class="legal">
+    <span class="eyebrow">Legal</span>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: October 14, 2026</p>
+
+    <p>Weavn is a team-chat product by innovai8 whose system of record is the JIRA
+    your organization already runs. This policy explains, in plain terms, what we
+    handle and why. Weavn is in early access; we will post a fuller policy as the
+    product matures.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>Your conversations are stored in <b>your own JIRA</b> — not in a separate Weavn database that becomes the source of truth.</li>
+      <li>We don't sell your data, and we don't use your messages to train models.</li>
+      <li>You can revoke Weavn's access from your JIRA/identity provider at any time.</li>
+    </ul>
+
+    <h2>What we process</h2>
+    <ul>
+      <li><b>Identity</b> — when you sign in, your JIRA account id, email, and display name, to authenticate you and attribute messages to the real you.</li>
+      <li><b>A projection/cache</b> — a minimal copy of the messages and metadata needed to render channels quickly. The authoritative copy lives in your JIRA.</li>
+      <li><b>Operational data</b> — basic logs and seat/usage counts per JIRA namespace, used to run the service and for licensing.</li>
+    </ul>
+
+    <h2>What we don't do</h2>
+    <ul>
+      <li>We don't sell or rent your data.</li>
+      <li>We don't use your content to train machine-learning models.</li>
+      <li>We don't write to your JIRA as anyone but you — actions use your own credentials.</li>
+    </ul>
+
+    <h2>Direct messages</h2>
+    <p>DMs are held in an encrypted vault, separate from the ticket store.</p>
+
+    <h2>Your controls</h2>
+    <p>You can revoke Weavn's access from your identity provider or JIRA at any time.
+    To request deletion of the projection/cache we hold for your namespace, contact us.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about privacy? Email <a href="mailto:hello@weavn.io">hello@weavn.io</a>.</p>
+
+    <div class="note">This page is an early-access summary, not legal advice. A complete,
+    jurisdiction-specific policy will be published before general availability.</div>
+  </article>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="foot-base">
+      <span>© <span id="yr">2026</span> innovai8 · Weavn</span>
+      <span><a href="/" style="color:inherit">weavn.io</a> · <a href="/terms.html" style="color:inherit">Terms</a></span>
+    </div>
+  </div>
+</footer>
+<script>document.getElementById('yr').textContent=new Date().getFullYear();</script>
+</body>
+</html>

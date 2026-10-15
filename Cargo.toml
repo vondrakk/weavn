@@ -1,0 +1,11 @@
+# Weavn prototype workspace.
+# Default build (mock JIRA + CLI) needs no running services.
+# The `real-jira` feature wires a live JIRA Cloud site via reqwest.
+[workspace]
+resolver = "2"
+members = ["crates/weavn", "crates/weavn-cli", "crates/weavn-gateway", "crates/weavn-store"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"

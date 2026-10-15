@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Weavn">
+  <defs>
+    <linearGradient id="fA" x1="12" y1="50" x2="40" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B1B7D"/><stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="fB" x1="28" y1="20" x2="54" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/><stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#0F172A"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+    <path d="M14 19 L26 49 L37 22" stroke="url(#fA)"/>
+    <path d="M27 22 L38 49 L50 19" stroke="url(#fB)"/>
+  </g>
+</svg>

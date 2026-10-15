@@ -1,0 +1,26 @@
+[package]
+name = "weavn-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# The real service (docs/DESIGN.md §2/§11): an axum HTTP/websocket server that
+# wraps the engine. This first cut exposes the engine over JSON against the mock
+# backend; real JIRA, Postgres projection, and websockets come next.
+[[bin]]
+name = "weavn-gateway"
+path = "src/main.rs"
+
+[dependencies]
+weavn = { path = "../weavn", features = ["real-jira"] }
+weavn-store = { path = "../weavn-store" }
+axum = { version = "0.8", features = ["ws", "multipart"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# SSO: Okta/OIDC at the gateway (docs/DESIGN.md §2). Configured via env; absent = off.
+openidconnect = { version = "3", features = ["reqwest"] }
+# JIRA-token login (validate email+token against /myself) as an alternative to Okta.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+base64 = "0.22"

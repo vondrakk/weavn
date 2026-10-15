@@ -1,0 +1,18 @@
+[package]
+name = "weavn-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "weavn"
+path = "src/main.rs"
+
+[dependencies]
+weavn = { path = "../weavn" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# Pull the real JIRA client into the CLI (enables `weavn real-check`).
+real-jira = ["weavn/real-jira"]

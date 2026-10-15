@@ -1,0 +1,30 @@
+# In-cluster Postgres for the Weavn SaaS, via the CloudNativePG operator
+# (same operator/pattern as swpmt-pg, umami-db, etc.). CNPG publishes the
+# connection string as secret "weavn-pg-app" (key "uri"), which the gateway
+# reads as DATABASE_URL.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: weavn-pg
+  namespace: weavn
+  labels: { app.kubernetes.io/part-of: weavn }
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-system-trixie
+  enableSuperuserAccess: false
+  enablePDB: true
+  affinity:
+    podAntiAffinityType: preferred
+  bootstrap:
+    initdb:
+      database: weavn
+      owner: weavn
+      encoding: UTF8
+      localeCollate: C
+      localeCType: C
+  storage:
+    size: 10Gi
+    storageClass: do-block-storage-retain
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits:   { cpu: "1",  memory: 1Gi }

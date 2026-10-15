@@ -1,0 +1,19 @@
+[package]
+name = "weavn-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# The operational store (docs/DESIGN.md §10): plain PostgreSQL via sqlx, reached
+# only from here. Host-agnostic by connection string — Supabase for dev. First
+# slice is the `config` table (per-workspace settings that today are env vars).
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "weavndb"
+path = "src/bin/weavndb.rs"
+
+[dependencies]
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

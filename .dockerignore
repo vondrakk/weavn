@@ -1,0 +1,10 @@
+# Build context for deploy/Dockerfile (the weavn-gateway image).
+# Keep the context small: only the Cargo workspace is needed.
+target/
+site/
+decks/
+branding/
+.git/
+.github/
+scripts/*.env
+scripts/.vv-k8s.kubeconfig

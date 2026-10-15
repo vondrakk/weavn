@@ -1,0 +1,69 @@
+# Weavn SaaS gateway (axum): web client at / + JSON API, JIRA writes with the
+# logged-in user's own token, projection in the weavn-pg Postgres.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: weavn-gateway-env
+  namespace: weavn
+data:
+  WEAVN_BIND: "0.0.0.0:8080"
+  # Storage project key for NEW native conversations (must exist in the JIRA the
+  # user logs into). Set this to a real project key before relying on sends.
+  WEAVN_PROJECT: "WEAVN"
+  # --- Optional Okta/OIDC SSO (leave unset to run JIRA-token login only) ---
+  # WEAVN_OIDC_ISSUER: "https://<org>.okta.com/oauth2/default"
+  # WEAVN_OIDC_CLIENT_ID: "0oa..."
+  # WEAVN_OIDC_REDIRECT_URL: "https://app.weavn.io/auth/callback"
+  # (WEAVN_OIDC_CLIENT_SECRET goes in a Secret named weavn-gateway-secret.)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weavn-gateway
+  namespace: weavn
+  labels: { app.kubernetes.io/name: weavn-gateway, app.kubernetes.io/part-of: weavn }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/name: weavn-gateway }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: weavn-gateway, app.kubernetes.io/part-of: weavn }
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-pull
+      containers:
+        - name: gateway
+          image: registry.git.vondrakk.com/weavn/weavn/gateway:TAG
+          imagePullPolicy: Always
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - configMapRef: { name: weavn-gateway-env }
+            # Optional OIDC client secret (create the Secret to enable it):
+            - secretRef: { name: weavn-gateway-secret, optional: true }
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: weavn-pg-app, key: uri }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weavn-gateway
+  namespace: weavn
+  labels: { app.kubernetes.io/name: weavn-gateway, app.kubernetes.io/part-of: weavn }
+spec:
+  selector: { app.kubernetes.io/name: weavn-gateway }
+  ports:
+    - { name: http, port: 80, targetPort: 8080 }
