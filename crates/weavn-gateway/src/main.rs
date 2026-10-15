@@ -295,7 +295,10 @@ struct CallbackQuery {
 
 async fn auth_callback(State(s): State<Shared>, Query(q): Query<CallbackQuery>) -> Response {
     match s.auth.complete_login(q.code, q.state).await {
-        Ok(sid) => (set_session_cookie(&sid), Redirect::to("/auth/me")).into_response(),
+        Ok(sid) => {
+            meter_seat(&s, &sid).await;
+            (set_session_cookie(&sid), Redirect::to("/auth/me")).into_response()
+        }
         Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
     }
 }
@@ -311,10 +314,29 @@ struct JiraLoginReq {
 async fn auth_jira(State(s): State<Shared>, Json(r): Json<JiraLoginReq>) -> Response {
     match s.auth.jira_login(r.site.as_deref(), &r.email, &r.token).await {
         Ok(sid) => {
+            meter_seat(&s, &sid).await;
             let who = s.auth.session(&sid);
             (set_session_cookie(&sid), Json(who)).into_response()
         }
         Err(e) => (StatusCode::UNAUTHORIZED, e).into_response(),
+    }
+}
+
+/// Licensing meter (docs/LICENSING.md): claim a seat for this sign-in under the
+/// user's JIRA namespace. Fire-and-forget — it never blocks or fails a login,
+/// and usage over entitlement is reported, not enforced.
+async fn meter_seat(s: &AppState, sid: &str) {
+    if let Some(sess) = s.auth.session(sid) {
+        if let Some(creds) = sess.jira.as_ref() {
+            let _ = weavn_store::seat_claim(
+                &s.pool,
+                &creds.base,
+                &sess.subject,
+                &sess.author(),
+                sess.email.as_deref(),
+            )
+            .await;
+        }
     }
 }
 
