@@ -1425,6 +1425,72 @@ struct BackfillReq {
 
 /// Pull a project's recent issues (+ comments) from JIRA into the projection as a
 /// channel named after the project key. Idempotent per issue.
+/// Current Unix time in seconds.
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// Days since the Unix epoch for a civil (proleptic Gregorian) date — Howard
+/// Hinnant's `days_from_civil`.
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = (if y >= 0 { y } else { y - 399 }) / 400;
+    let yoe = y - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+
+/// Parse a JIRA ISO-8601 timestamp (e.g. "2025-03-14T10:22:33.123+0000", also
+/// "…+00:00" or "…Z") to Unix seconds (UTC). `None` if it isn't one.
+fn parse_jira_ts(s: &str) -> Option<i64> {
+    let s = s.trim();
+    let (date, rest) = s.split_once('T')?;
+    let mut dp = date.split('-');
+    let y: i64 = dp.next()?.parse().ok()?;
+    let mo: i64 = dp.next()?.parse().ok()?;
+    let d: i64 = dp.next()?.parse().ok()?;
+    // Split the trailing timezone (Z, or ±HHMM / ±HH:MM) off the time.
+    let (time, off_secs): (&str, i64) = if let Some(t) = rest.strip_suffix(['Z', 'z']) {
+        (t, 0)
+    } else {
+        let bytes = rest.as_bytes();
+        let mut idx = None;
+        for i in (1..bytes.len()).rev() {
+            if bytes[i] == b'+' || bytes[i] == b'-' {
+                idx = Some(i);
+                break;
+            }
+        }
+        match idx {
+            Some(i) => {
+                let (t, off) = rest.split_at(i);
+                let sign = if off.starts_with('-') { -1 } else { 1 };
+                let digits: String = off[1..].chars().filter(|c| c.is_ascii_digit()).collect();
+                if digits.len() < 4 {
+                    (t, 0)
+                } else {
+                    let oh: i64 = digits[0..2].parse().ok()?;
+                    let om: i64 = digits[2..4].parse().ok()?;
+                    (t, sign * (oh * 3600 + om * 60))
+                }
+            }
+            None => (rest, 0),
+        }
+    };
+    let time = time.split('.').next().unwrap_or(time);
+    let mut tp = time.split(':');
+    let hh: i64 = tp.next()?.parse().ok()?;
+    let mm: i64 = tp.next()?.parse().ok()?;
+    let ss: i64 = tp.next().unwrap_or("0").parse().ok()?;
+    let local = days_from_civil(y, mo, d) * 86400 + hh * 3600 + mm * 60 + ss;
+    Some(local - off_secs)
+}
+
 async fn backfill(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<BackfillReq>) -> Result<Json<serde_json::Value>, ApiError> {
     let (creds, _author, ws) = jira_session(&s, &headers)?;
     let project = r.project.clone();
@@ -1435,8 +1501,15 @@ async fn backfill(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Bac
 
     let channel = r.project.clone();
     let mut added = 0usize;
+    let mut redated = 0usize;
     for iss in issues {
         if weavn_store::issue_exists(&s.pool, &ws, &iss.key).await.map_err(db_err)? {
+            // Already cached — but heal its date in case it was imported with the
+            // old now()-stamp bug (idempotent; JIRA `created` is immutable).
+            if let Some(ts) = parse_jira_ts(&iss.created) {
+                weavn_store::issue_set_created(&s.pool, &ws, &iss.key, ts).await.map_err(db_err)?;
+                redated += 1;
+            }
             continue;
         }
         let body = if iss.description.is_empty() {
@@ -1444,14 +1517,18 @@ async fn backfill(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Bac
         } else {
             format!("{}\n{}", iss.summary, iss.description)
         };
-        weavn_store::message_insert(&s.pool, &ws, &channel, &iss.key, None, &iss.reporter, &body, true, false).await.map_err(db_err)?;
+        // Keep the issue's real JIRA date, not the moment we cached it — otherwise
+        // every backfilled ticket looks brand-new and sorts to the top of the river.
+        let root_ts = parse_jira_ts(&iss.created).unwrap_or_else(unix_now);
+        weavn_store::message_insert_at(&s.pool, &ws, &channel, &iss.key, None, &iss.reporter, &body, true, false, root_ts).await.map_err(db_err)?;
         weavn_store::status_set(&s.pool, &ws, &iss.key, &iss.status).await.map_err(db_err)?;
-        for (author, cbody) in iss.comments {
-            weavn_store::message_insert(&s.pool, &ws, &channel, &iss.key, Some(&iss.key), &author, &cbody, true, false).await.map_err(db_err)?;
+        for (author, cbody, cts) in iss.comments {
+            let ts = parse_jira_ts(&cts).unwrap_or(root_ts);
+            weavn_store::message_insert_at(&s.pool, &ws, &channel, &iss.key, Some(&iss.key), &author, &cbody, true, false, ts).await.map_err(db_err)?;
         }
         added += 1;
     }
-    Ok(Json(serde_json::json!({ "channel": channel, "added": added })))
+    Ok(Json(serde_json::json!({ "channel": channel, "added": added, "redated": redated })))
 }
 
 // --- Tier 2: per-user prefs (stars, saved, status, DND, archive) ------------
@@ -2568,4 +2645,30 @@ async fn search(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<Sea
             })
             .collect(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{days_from_civil, parse_jira_ts};
+
+    #[test]
+    fn civil_epoch_anchor() {
+        assert_eq!(days_from_civil(1970, 1, 1), 0);
+        assert_eq!(days_from_civil(1969, 12, 31), -1);
+        assert_eq!(days_from_civil(2000, 1, 1), 10957);
+    }
+
+    #[test]
+    fn parses_jira_timestamps() {
+        // 2025-03-14T10:22:33Z == 1741947753 (UTC)
+        assert_eq!(parse_jira_ts("2025-03-14T10:22:33.000+0000"), Some(1_741_947_753));
+        assert_eq!(parse_jira_ts("2025-03-14T10:22:33Z"), Some(1_741_947_753));
+        // +02:00 offset: the same wall clock is two hours earlier in UTC.
+        assert_eq!(parse_jira_ts("2025-03-14T12:22:33.000+02:00"), Some(1_741_947_753));
+        // A negative offset moves UTC later.
+        assert_eq!(parse_jira_ts("2025-03-14T05:22:33.000-0500"), Some(1_741_947_753));
+        // The Unix epoch itself.
+        assert_eq!(parse_jira_ts("1970-01-01T00:00:00.000+0000"), Some(0));
+        assert_eq!(parse_jira_ts("not a date"), None);
+    }
 }

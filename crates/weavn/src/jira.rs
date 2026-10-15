@@ -472,7 +472,10 @@ pub mod real {
         pub reporter: String,
         pub description: String,
         pub status: String,
-        pub comments: Vec<(String, String)>,
+        /// The issue's JIRA `created` timestamp (ISO 8601, e.g. 2025-03-14T10:22:33.000+0000).
+        pub created: String,
+        /// (author, body, created-ISO) per comment.
+        pub comments: Vec<(String, String, String)>,
     }
 
     /// Flatten an ADF document to plain text (one line per block). Superseded by
@@ -567,7 +570,7 @@ pub mod real {
                 .query(&[
                     ("jql", jql.as_str()),
                     ("maxResults", mr.as_str()),
-                    ("fields", "summary,description,comment,reporter,status"),
+                    ("fields", "summary,description,comment,reporter,status,created"),
                 ])
                 .send()
                 .map_err(|e| e.to_string())?;
@@ -591,6 +594,7 @@ pub mod real {
                                             (
                                                 c["author"]["displayName"].as_str().unwrap_or("?").to_string(),
                                                 crate::format::adf_to_mrkdwn(&c["body"]),
+                                                c["created"].as_str().unwrap_or("").to_string(),
                                             )
                                         })
                                         .collect()
@@ -599,6 +603,7 @@ pub mod real {
                             BackfillIssue {
                                 key: i["key"].as_str().unwrap_or("").to_string(),
                                 summary: f["summary"].as_str().unwrap_or("").to_string(),
+                                created: f["created"].as_str().unwrap_or("").to_string(),
                                 reporter: f["reporter"]["displayName"].as_str().unwrap_or("JIRA").to_string(),
                                 status: f["status"]["name"].as_str().unwrap_or("").to_string(),
                                 description: if f["description"].is_null() {

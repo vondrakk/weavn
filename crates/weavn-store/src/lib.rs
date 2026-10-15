@@ -214,6 +214,56 @@ pub async fn message_insert(
     Ok(())
 }
 
+/// Like `message_insert`, but stamps `created_at` from an explicit Unix time
+/// instead of `now()`. Used by backfill so a projected issue keeps its real JIRA
+/// date rather than the moment it was pulled into the cache.
+#[allow(clippy::too_many_arguments)]
+pub async fn message_insert_at(
+    pool: &PgPool,
+    workspace: &str,
+    channel: &str,
+    issue_key: &str,
+    parent_issue: Option<&str>,
+    author: &str,
+    body: &str,
+    from_jira: bool,
+    broadcast: bool,
+    created_at: i64,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "insert into message (workspace, channel, issue_key, parent_issue, author, body, from_jira, broadcast, created_at) \
+         values ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9))",
+    )
+    .bind(workspace)
+    .bind(channel)
+    .bind(issue_key)
+    .bind(parent_issue)
+    .bind(author)
+    .bind(body)
+    .bind(from_jira)
+    .bind(broadcast)
+    .bind(created_at)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Correct an already-cached issue's top-level date to its real JIRA `created`
+/// time (idempotent — JIRA `created` never changes). Lets a rescan heal rows that
+/// were imported before backfill learned to preserve the real date.
+pub async fn issue_set_created(pool: &PgPool, workspace: &str, issue_key: &str, created_at: i64) -> sqlx::Result<()> {
+    sqlx::query(
+        "update message set created_at = to_timestamp($3) \
+         where workspace = $1 and issue_key = $2 and parent_issue is null",
+    )
+    .bind(workspace)
+    .bind(issue_key)
+    .bind(created_at)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Replace a conversation's top-level body with `body`, collapsing any coalesced
 /// fragments into the earliest row, and set its `deleted` flag. Used by edit
 /// (deleted=false) and soft delete (deleted=true). JIRA keeps the full changelog.

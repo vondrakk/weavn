@@ -618,25 +618,38 @@ async function openChannel(ch,backfill){
 function saveDraft(){try{localStorage.setItem('weavn-draft:'+CURCH,$('#body').value);}catch(e){}}
 function restoreDraft(){try{$('#body').value=localStorage.getItem('weavn-draft:'+$('#channel').value.trim())||'';}catch(e){$('#body').value='';}}
 
-let THREADS=[], LOADEDCH='', CURTHREAD=null;
-let FILTER={q:'',status:'',sort:'recent'};
+let THREADS=[], LOADEDCH='', CURTHREAD=null, STATUS_TOUCHED=false;
+// Default view is "In progress": statuses being actively worked — anything that
+// isn't a backlog/to-do or a done/closed terminal. '__active' is that category.
+const ST_DONE=/^(done|closed|resolved|complete|completed|cancell?ed|won'?t ?do|archived|released)$/i;
+const ST_TODO=/^(to ?do|open|backlog|new|triage|selected for development|to be done)$/i;
+function isActiveStatus(s){ s=(s||'').trim(); return !!s && !ST_DONE.test(s) && !ST_TODO.test(s); }
+let FILTER={q:'',status:'__active',sort:'recent'};
 // Apply the board's filter + sort to THREADS. Default is Slack's river: oldest at
 // the top, most-recent activity at the bottom.
 function filteredSorted(){
   let a=THREADS.slice();
   const q=FILTER.q.trim().toLowerCase();
   if(q) a=a.filter(t=>((t.author||'')+' '+(t.issue_key||'')+' '+(t.status||'')+' '+(t.lines||[]).join(' ')).toLowerCase().includes(q));
-  if(FILTER.status) a=a.filter(t=>(t.status||'')===FILTER.status);
+  if(FILTER.status==='__active') a=a.filter(t=>isActiveStatus(t.status));
+  else if(FILTER.status) a=a.filter(t=>(t.status||'')===FILTER.status);
   if(FILTER.sort==='new') a.sort((x,y)=>y.ts-x.ts);
   else a.sort((x,y)=>x.ts-y.ts); // 'recent' and 'old' both ascend; 'recent' means newest lands at the bottom
   return a;
 }
-// Rebuild the board's status-filter options from whatever statuses are present.
+// Rebuild the status-filter options from the statuses present, and default to the
+// "In progress" view the first time (until the reader picks a status themselves).
 function syncStatusFilter(){
   const sel=$('#fstatus'); const cur=sel.value;
   const uniq=[...new Set(THREADS.map(t=>(t.status||'').trim()).filter(Boolean))].sort();
-  sel.innerHTML='<option value="">All statuses</option>'+uniq.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
-  sel.value=uniq.includes(cur)?cur:''; FILTER.status=sel.value;
+  const hasActive=THREADS.some(t=>isActiveStatus(t.status));
+  sel.innerHTML='<option value="">All statuses</option>'
+    +(hasActive?'<option value="__active">In progress</option>':'')
+    +uniq.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  let want;
+  if(STATUS_TOUCHED){ want=((cur==='__active'&&hasActive)||uniq.includes(cur))?cur:''; }
+  else { want=hasActive?'__active':''; } // default view: in progress (fall back to All if none)
+  sel.value=want; FILTER.status=want;
 }
 // Render the (filtered, sorted) river into #stream and wire per-message actions.
 function renderStream(){
@@ -714,7 +727,7 @@ async function loadChannel(){
 }
 // Filter / sort controls re-render the loaded river in place (no refetch).
 $('#fq').addEventListener('input',e=>{FILTER.q=e.target.value;renderStream();});
-$('#fstatus').addEventListener('change',e=>{FILTER.status=e.target.value;renderStream();});
+$('#fstatus').addEventListener('change',e=>{STATUS_TOUCHED=true;FILTER.status=e.target.value;renderStream();});
 $('#fsort').addEventListener('change',e=>{FILTER.sort=e.target.value;renderStream();});
 
 // --- views: Updates (the board river) | Threads | Activity (both workspace-wide) ---
