@@ -520,6 +520,7 @@
           <div class="segpill" id="streamscope"><button data-s="you" class="on">For you</button><button data-s="following">Following</button><button data-s="all">Everything</button></div>
           <span class="fqwrap" style="flex:1"><span class="mi">search</span><input class="fq" id="streamq" placeholder="Filter the stream… (a channel is a saved filter)" autocomplete="off" spellcheck="false"></span>
           <select id="streamproj" title="Filter by board"><option value="">All boards</option></select>
+          <select id="streamstatus" title="Filter by status"><option value="">Any status</option><option value="active">In progress</option><option value="todo">To do</option><option value="done">Done</option></select>
           <button id="streamsave" class="fgear" title="Save this view as a channel"><span class="mi">bookmark_add</span></button>
           <span class="fcount" id="streamcount"></span>
         </div>
@@ -1184,7 +1185,7 @@ document.querySelectorAll('.viewtab').forEach(b=>b.addEventListener('click',()=>
 // --- The unified temporal stream ("For You" by default) -------------------------
 // A channel is a filter. This is the firehose of posts + comments across every
 // board, filtered to what touches you (scope "you") or everything (scope "all").
-let STREAM=[], STREAM_SCOPE='you', STREAM_Q='', STREAM_PROJ='';
+let STREAM=[], STREAM_SCOPE='you', STREAM_Q='', STREAM_PROJ='', STREAM_STATUS='';
 function streamInvolvesMe(it){
   const me=(MENAME||'').toLowerCase();
   if(!me) return true;
@@ -1226,22 +1227,26 @@ function renderStreamFeed(){
   if(STREAM_SCOPE==='you') a=a.filter(streamInvolvesMe);
   else if(STREAM_SCOPE==='following'){ const fs=savedFilters(); a=fs.length?a.filter(it=>fs.some(f=>filterMatch(it,f))):[]; }
   if(STREAM_PROJ) a=a.filter(it=>it.channel.split(' / ')[0]===STREAM_PROJ);
+  if(STREAM_STATUS) a=a.filter(it=>statusCat(it.status)===STREAM_STATUS);
   const q=STREAM_Q.trim().toLowerCase();
   if(q) a=a.filter(it=>((it.author||'')+' '+(it.channel||'')+' '+(it.issue_key||'')+' '+(it.snippet||'')).toLowerCase().includes(q));
+  a.sort((x,y)=>x.ts-y.ts); // chat-style: oldest at top, newest at the bottom
   $('#streamcount').textContent=a.length?`${a.length} item${a.length===1?'':'s'}`:'';
   syncStreamComposer();
   if(!a.length){ el.innerHTML=`<div class="feedempty">${STREAM_SCOPE==='following'&&!savedFilters().length?'Follow boards or save views to populate Following. Facet the stream and hit the bookmark to save it.':(STREAM.length?'Nothing matches this filter.':'No activity yet — post something or open a board to pull it in.')}</div>`; return; }
   el.innerHTML=a.map(it=>`<div class="fitem" data-issue="${esc(it.issue_key)}" data-ch="${esc(it.channel)}">
       <div class="fav">${esc(initials(it.author))}</div>
       <div class="fmain">
-        <div class="ftop"><span class="fa">${esc(it.author)}</span><span class="fkindchip ${esc(it.kind)}">${fmtStreamKind(it.kind)}</span><span class="fch">#${esc(it.channel)}</span>${it.status?`<span class="fkind">${esc(it.status)}</span>`:''}<span class="ftime">${esc(fmtTime(it.ts))}</span></div>
+        <div class="ftop"><span class="fa">${esc(it.author)}</span><span class="fkindchip ${esc(it.kind)}">${fmtStreamKind(it.kind)}</span><span class="fch">#${esc(it.channel)}</span>${it.status?`<span class="sdot ${statusClass(it.status)}" style="cursor:default"><span class="dot"></span>${esc(it.status)}</span>`:''}<span class="ftime">${esc(fmtTime(it.ts))}</span></div>
         <div class="fbody">${esc(it.snippet)}</div>
       </div>
     </div>`).join('');
   el.querySelectorAll('.fitem').forEach(f=>f.addEventListener('click',()=>openTreeIssue(f.dataset.issue)));
+  el.scrollTop=el.scrollHeight; // newest is at the bottom — land there
 }
 $('#streamscope').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ STREAM_SCOPE=b.dataset.s; $('#streamscope').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); renderStreamFeed(); }));
 $('#streamq').addEventListener('input',e=>{ STREAM_Q=e.target.value; renderStreamFeed(); });
+$('#streamstatus').addEventListener('change',e=>{ STREAM_STATUS=e.target.value; renderStreamFeed(); });
 $('#streamproj').addEventListener('change',e=>{ STREAM_PROJ=e.target.value; renderStreamFeed(); });
 // Save the current view as a channel (a named saved filter in the sidebar)
 $('#streamsave').addEventListener('click',()=>{

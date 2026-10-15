@@ -422,11 +422,17 @@ pub struct StreamRow {
 /// The unified temporal stream: recent messages across the whole workspace,
 /// newest first. Caller filters out private channels the user can't see.
 pub async fn workspace_stream(pool: &PgPool, workspace: &str, limit: i64) -> sqlx::Result<Vec<StreamRow>> {
+    // `status` lives on the root row only, so resolve each item (incl. comments) to
+    // its issue's current status so every stream item shows the ticket's state.
     sqlx::query_as::<_, StreamRow>(
-        "select channel, issue_key, parent_issue, author, body, from_jira, status, \
-                extract(epoch from created_at)::bigint as created_at \
-         from message where workspace = $1 and deleted = false \
-         order by created_at desc limit $2",
+        "select m.channel, m.issue_key, m.parent_issue, m.author, m.body, m.from_jira, \
+                coalesce((select r.status from message r \
+                          where r.workspace = m.workspace and r.issue_key = m.issue_key \
+                            and r.parent_issue is null and r.status <> '' \
+                          order by r.id desc limit 1), '') as status, \
+                extract(epoch from m.created_at)::bigint as created_at \
+         from message m where m.workspace = $1 and m.deleted = false \
+         order by m.created_at desc limit $2",
     )
     .bind(workspace)
     .bind(limit)
