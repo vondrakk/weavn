@@ -13,6 +13,9 @@ pub use sqlx::PgPool as Pool;
 mod license;
 pub use license::*;
 
+/// SaaS control plane: tenant provisioning + login activity (docs/MULTITENANCY.md).
+pub mod tenant;
+
 /// Embedded migrations (read at compile time; no DB needed to build).
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
@@ -291,6 +294,53 @@ pub async fn read_messages(pool: &PgPool, workspace: &str, channel: &str, subtre
         format!("select {cols} from message where workspace = $1 and channel = $2 order by id")
     };
     sqlx::query_as::<_, MsgRow>(&sql).bind(workspace).bind(channel).fetch_all(pool).await
+}
+
+/// One row of the workspace-wide "all threads" feed: a conversation that has at
+/// least one reply, with its root and most-recent reply, ordered by last activity.
+#[derive(sqlx::FromRow)]
+pub struct WsThread {
+    pub channel: String,
+    pub issue_key: String,
+    pub root_author: String,
+    pub root_body: String,
+    pub replies: i64,
+    pub last_author: String,
+    pub last_body: String,
+    pub last_at: i64, // unix seconds of the most recent message in the thread
+}
+
+/// Threads across the whole workspace that have replies, newest activity first.
+/// Caller is responsible for filtering out private channels the user can't see.
+pub async fn workspace_threads(pool: &PgPool, workspace: &str, limit: i64) -> sqlx::Result<Vec<WsThread>> {
+    sqlx::query_as::<_, WsThread>(
+        "with stats as (
+           select issue_key, min(channel) as channel,
+                  count(*) filter (where parent_issue is not null) as replies,
+                  max(created_at) as last_at
+           from message
+           where workspace = $1 and deleted = false
+           group by issue_key
+           having count(*) filter (where parent_issue is not null) > 0
+         )
+         select s.channel, s.issue_key, s.replies::bigint as replies,
+                extract(epoch from s.last_at)::bigint as last_at,
+                r.author as root_author, r.body as root_body,
+                l.author as last_author, l.body as last_body
+         from stats s
+         join lateral (select author, body from message
+                       where workspace = $1 and issue_key = s.issue_key and parent_issue is null
+                       order by id limit 1) r on true
+         join lateral (select author, body from message
+                       where workspace = $1 and issue_key = s.issue_key and parent_issue is not null
+                       order by id desc limit 1) l on true
+         order by s.last_at desc
+         limit $2",
+    )
+    .bind(workspace)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
 }
 
 /// Merged top-level body of an issue (root + coalesced fragments).

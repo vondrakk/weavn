@@ -12,6 +12,10 @@ async fn cleanup(pool: &store::Pool, ws: &str) {
             .execute(pool)
             .await;
     }
+    let _ = sqlx::query("delete from config where workspace_id = $1")
+        .bind(ws)
+        .execute(pool)
+        .await;
 }
 
 #[tokio::test]
@@ -56,6 +60,59 @@ async fn meter_never_deny_and_reclaim() {
         .await.unwrap();
     assert!(!store::license_is_current(&pool, &ws).await.unwrap());
     assert_eq!(store::entitlement(&pool, &ws).await.unwrap().entitled, store::FREE_SEATS);
+
+    cleanup(&pool, &ws).await;
+}
+
+/// The hosted free-tier HARD cap: a new user beyond the free seats is refused on an
+/// unlicensed namespace, existing users still re-admit, and a commercial license
+/// lifts the block (metered, never denied).
+#[tokio::test]
+async fn enforced_free_cap_blocks_then_license_lifts() {
+    use store::Admission;
+    let Ok(url) = std::env::var("DATABASE_URL") else {
+        eprintln!("DATABASE_URL unset — skipping enforced-cap test");
+        return;
+    };
+    let pool = store::connect(&url).await.expect("connect");
+    store::migrate(&pool).await.expect("migrate");
+    let ws = format!("test://cap-{}", std::process::id());
+    cleanup(&pool, &ws).await;
+
+    // Shrink the free cap to 2 for a fast test.
+    store::config_set(&pool, &ws, "license.free_seats", "2").await.unwrap();
+
+    // Two new users fit within the free cap.
+    for acc in ["u1", "u2"] {
+        match store::seat_claim_enforced(&pool, &ws, acc, acc, None).await.unwrap() {
+            Admission::Admitted(c) => assert!(c.newly_claimed && !c.licensed),
+            Admission::Full { .. } => panic!("{acc} should be admitted within the free cap"),
+        }
+    }
+    assert_eq!(store::seat_active_count(&pool, &ws).await.unwrap(), 2);
+
+    // The 3rd NEW user is refused, and no seat is created.
+    match store::seat_claim_enforced(&pool, &ws, "u3", "u3", None).await.unwrap() {
+        Admission::Full { active_seats, entitled } => assert_eq!((active_seats, entitled), (2, 2)),
+        Admission::Admitted(_) => panic!("u3 should be blocked by the free cap"),
+    }
+    assert_eq!(store::seat_active_count(&pool, &ws).await.unwrap(), 2, "blocked user leaves no seat");
+
+    // An existing user re-signing in is always admitted, even at the cap.
+    match store::seat_claim_enforced(&pool, &ws, "u1", "u1", None).await.unwrap() {
+        Admission::Admitted(c) => assert!(!c.newly_claimed),
+        Admission::Full { .. } => panic!("existing user must never be blocked"),
+    }
+
+    // A commercial license lifts the cap: the new user is admitted and metered.
+    store::license_set(&pool, &ws, 2, Some("2026-01-01"), Some("2030-01-01"), Some("commercial"), None)
+        .await.unwrap();
+    match store::seat_claim_enforced(&pool, &ws, "u3", "u3", None).await.unwrap() {
+        Admission::Admitted(c) => {
+            assert!(c.licensed && c.active_seats == 3 && c.over == 1, "licensed: admitted + overage reported");
+        }
+        Admission::Full { .. } => panic!("a licensed namespace is never blocked"),
+    }
 
     cleanup(&pool, &ws).await;
 }

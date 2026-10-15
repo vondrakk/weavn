@@ -27,8 +27,14 @@ const COALESCE_SECS: i64 = 90;
 struct AppState {
     pool: Pool,
     auth: auth::Auth,
-    project: String, // storage project for native sends
     hub: hub::Hub,   // real-time fan-out (live delivery, typing, presence)
+    /// SaaS base domain (e.g. `weavn.io`). When set, the gateway is multi-tenant:
+    /// the Host's subdomain identifies the tenant and pins login to its JIRA site.
+    /// Unset = single-tenant dev (login takes the JIRA site from the form).
+    base_domain: Option<String>,
+    /// Cache of project-access checks for channel→project resolution, keyed by
+    /// "workspace\u{1f}KEY" → (checked_at, canonical key if accessible). TTL'd.
+    proj_cache: std::sync::Mutex<HashMap<String, (std::time::Instant, Option<String>)>>,
 }
 
 /// A live "the channel changed, reload it" event for the fan-out hub.
@@ -163,9 +169,16 @@ async fn process_scheduled(s: &AppState, row: weavn_store::ScheduledRow) {
         }
         return;
     };
-    let project = s.project.clone();
     let channel = row.channel.clone();
-    let slug = channel_slug(&channel);
+    let (project, slug) = match resolve_target(s, Some(&creds), &ws, &channel).await {
+        Ok(v) => v,
+        Err((_, msg)) => {
+            let _ = weavn_store::notify_insert(&s.pool, &ws, &row.author_account, "reminder", &channel, "", "Weavn", &format!("A scheduled message could not be sent: {msg}")).await;
+            s.hub.publish(&ws, serde_json::json!({ "type": "notify" }).to_string());
+            let _ = weavn_store::scheduled_mark_done(&s.pool, row.id).await;
+            return;
+        }
+    };
     let body = row.body.clone();
     let summary = weavn::proto::summarize(&body, 80);
     let (c, b2, sum2) = (creds.clone(), body.clone(), summary.clone());
@@ -206,13 +219,23 @@ async fn main() {
     });
     let pool = weavn_store::connect(&db_url).await.expect("connect Postgres");
     weavn_store::migrate(&pool).await.expect("migrate");
-    let project = std::env::var("WEAVN_PROJECT").unwrap_or_else(|_| "BC".to_string());
+
+    let base_domain = std::env::var("WEAVN_BASE_DOMAIN")
+        .ok()
+        .map(|d| d.trim().trim_start_matches('.').to_ascii_lowercase())
+        .filter(|d| !d.is_empty());
+    if let Some(d) = &base_domain {
+        println!("Tenancy: multi-tenant on *.{d} (subdomain = JIRA site label)");
+    } else {
+        println!("Tenancy: single-tenant dev (set WEAVN_BASE_DOMAIN to enable subdomains)");
+    }
 
     let state: Shared = Arc::new(AppState {
         pool,
         auth: auth::Auth::from_env().await,
-        project,
         hub: hub::Hub::default(),
+        base_domain,
+        proj_cache: std::sync::Mutex::new(HashMap::new()),
     });
 
     // In-process scheduler for "send later" messages and reminders.
@@ -230,6 +253,7 @@ async fn main() {
         .route("/transition", post(transition))
         .route("/refine", post(refine))
         .route("/read", get(read))
+        .route("/threads", get(threads_feed))
         .route("/export", get(export))
         .route("/discover", get(discover))
         .route("/users", get(users))
@@ -277,6 +301,7 @@ async fn main() {
         .route("/auth/login", get(auth_login))
         .route("/auth/callback", get(auth_callback))
         .route("/auth/jira", post(auth_jira))
+        .route("/auth/config", get(auth_config))
         .route("/auth/me", get(auth_me))
         .route("/auth/logout", get(auth_logout))
         // allow file uploads up to ~26 MB (the /upload handler caps content at 25)
@@ -381,6 +406,40 @@ async fn auth_callback(State(s): State<Shared>, Query(q): Query<CallbackQuery>) 
     }
 }
 
+/// The tenant subdomain for this request's Host, when multi-tenant and the Host is
+/// `<label>.<base_domain>` with a non-reserved single label. `None` for the apex
+/// (`weavn.io`), a reserved host (`app.`/`www.`…), or single-tenant dev.
+fn host_subdomain(s: &AppState, headers: &HeaderMap) -> Option<String> {
+    let base = s.base_domain.as_deref()?;
+    let host = headers.get(header::HOST)?.to_str().ok()?;
+    let host = host.split(':').next().unwrap_or(host).to_ascii_lowercase();
+    let label = host.strip_suffix(&format!(".{base}"))?;
+    if label.is_empty() || label.contains('.') {
+        return None; // apex, or a deeper name we don't treat as a tenant
+    }
+    if weavn_store::tenant::RESERVED.contains(&label) {
+        return None; // app./www./api.… are platform hosts, not tenants
+    }
+    Some(label.to_string())
+}
+
+/// What the client needs to render the right login UI for this host.
+#[derive(Serialize)]
+struct AuthConfig {
+    multitenant: bool,
+    base_domain: Option<String>,
+    subdomain: Option<String>, // Some = a tenant host; None = apex / dev
+}
+
+async fn auth_config(State(s): State<Shared>, headers: HeaderMap) -> Response {
+    Json(AuthConfig {
+        multitenant: s.base_domain.is_some(),
+        base_domain: s.base_domain.clone(),
+        subdomain: host_subdomain(&s, &headers),
+    })
+    .into_response()
+}
+
 #[derive(Deserialize)]
 struct JiraLoginReq {
     #[serde(default)]
@@ -389,20 +448,119 @@ struct JiraLoginReq {
     token: String,
 }
 
-async fn auth_jira(State(s): State<Shared>, Json(r): Json<JiraLoginReq>) -> Response {
-    match s.auth.jira_login(r.site.as_deref(), &r.email, &r.token).await {
-        Ok(sid) => {
-            meter_seat(&s, &sid).await;
-            let who = s.auth.session(&sid);
-            (set_session_cookie(&sid), Json(who)).into_response()
-        }
-        Err(e) => (StatusCode::UNAUTHORIZED, e).into_response(),
-    }
+/// Usage snapshot returned on login so the client can show a warning banner.
+#[derive(Serialize)]
+struct UsageInfo {
+    active_seats: i64,
+    entitled: i64,
+    over: i64,
+    licensed: bool,
 }
 
-/// Licensing meter (docs/LICENSING.md): claim a seat for this sign-in under the
-/// user's JIRA namespace. Fire-and-forget — it never blocks or fails a login,
-/// and usage over entitlement is reported, not enforced.
+#[derive(Serialize)]
+struct LoginResp {
+    session: Option<auth::Session>,
+    subdomain: Option<String>, // canonical tenant subdomain (for apex -> redirect)
+    redirect: Option<String>,  // set when the browser is on the wrong host
+    usage: Option<UsageInfo>,
+}
+
+async fn auth_jira(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<JiraLoginReq>) -> Response {
+    // Multi-tenant: the Host's subdomain pins which JIRA site this login may use, so
+    // a browser on domaintools.weavn.io can only sign into domaintools.atlassian.net.
+    let host_sub = host_subdomain(&s, &headers);
+    let (site, apex): (Option<String>, bool) = match (&s.base_domain, &host_sub) {
+        (Some(_), Some(sub)) => (Some(sub.clone()), false), // pinned by host
+        (Some(_), None) => {
+            // Apex host: don't authenticate here — send them to their workspace host.
+            return (
+                StatusCode::BAD_REQUEST,
+                "sign in at your workspace URL, e.g. https://<site>.weavn.io".to_string(),
+            )
+                .into_response();
+        }
+        (None, _) => (r.site.clone(), true), // single-tenant dev: take site from the form
+    };
+
+    let sid = match s.auth.jira_login(site.as_deref(), &r.email, &r.token).await {
+        Ok(sid) => sid,
+        Err(e) => return (StatusCode::UNAUTHORIZED, e).into_response(),
+    };
+    let Some(sess) = s.auth.session(&sid) else {
+        return (StatusCode::INTERNAL_SERVER_ERROR, "session lost".to_string()).into_response();
+    };
+    let jira_base = sess.site.clone().unwrap_or_default();
+    let canonical = weavn_store::tenant::subdomain_for_base(&jira_base);
+
+    // Admission control: meter the seat, enforcing the free-tier hard cap.
+    let usage = match weavn_store::seat_claim_enforced(
+        &s.pool,
+        &jira_base,
+        &sess.subject,
+        &sess.author(),
+        sess.email.as_deref(),
+    )
+    .await
+    {
+        Ok(weavn_store::Admission::Admitted(c)) => Some(UsageInfo {
+            active_seats: c.active_seats,
+            entitled: c.entitled,
+            over: c.over,
+            licensed: c.licensed,
+        }),
+        Ok(weavn_store::Admission::Full { active_seats, entitled }) => {
+            // Over the free cap and unlicensed: refuse, drop the session.
+            s.auth.logout(&sid);
+            let body = serde_json::json!({
+                "error": "workspace_full",
+                "active_seats": active_seats,
+                "entitled": entitled,
+                "message": format!(
+                    "This workspace is full ({active_seats}/{entitled} seats on the free plan). \
+                     Contact us to lift the cap."
+                ),
+            });
+            return (StatusCode::FORBIDDEN, Json(body)).into_response();
+        }
+        Err(e) => return db_err(e).into_response(),
+    };
+
+    // Provision/refresh the tenant record (control-plane: subdomain + email only).
+    if let Some(sub) = &canonical {
+        let _ = weavn_store::tenant::provision(
+            &s.pool,
+            sub,
+            &jira_base,
+            sess.email.as_deref(),
+            sess.display_name.as_deref(),
+        )
+        .await;
+        let _ = weavn_store::tenant::touch(&s.pool, sub).await;
+        let plan = if usage.as_ref().map(|u| u.licensed).unwrap_or(false) { "commercial" } else { "free" };
+        let _ = weavn_store::tenant::set_plan(&s.pool, sub, plan).await;
+        let _ = weavn_store::tenant::log_login(&s.pool, sub, &sess.subject, sess.email.as_deref()).await;
+    }
+
+    // On the apex (dev or a stray entry point), tell the client where its home is.
+    let redirect = if apex {
+        None
+    } else {
+        match (&s.base_domain, &canonical, &host_sub) {
+            (Some(base), Some(c), Some(h)) if c != h => Some(format!("https://{c}.{base}/")),
+            _ => None,
+        }
+    };
+
+    (
+        set_session_cookie(&sid),
+        Json(LoginResp { session: Some(sess), subdomain: canonical, redirect, usage }),
+    )
+        .into_response()
+}
+
+/// Licensing meter (docs/LICENSING.md): claim a seat for an OIDC sign-in under the
+/// user's JIRA namespace. Fire-and-forget — never blocks a login (OIDC carries no
+/// JIRA creds, so it's a no-op unless a JIRA session exists).
 async fn meter_seat(s: &AppState, sid: &str) {
     if let Some(sess) = s.auth.session(sid) {
         if let Some(creds) = sess.jira.as_ref() {
@@ -498,6 +656,79 @@ fn channel_slug(ch: &str) -> String {
     ch.chars()
         .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
         .collect()
+}
+
+/// Whether `s` is shaped like a JIRA project key (a letter then alphanumerics,
+/// 2–10 chars). Used to decide if a channel's first segment names a project.
+fn looks_like_project_key(s: &str) -> bool {
+    let b = s.as_bytes();
+    (2..=10).contains(&b.len())
+        && b[0].is_ascii_alphabetic()
+        && b.iter().all(|c| c.is_ascii_alphanumeric())
+}
+
+/// The canonical key if `creds` can access a project named `key` (any accessible
+/// project, not just the first 50), else `None`. Cached per workspace+key for 5 min.
+async fn project_access(
+    s: &AppState,
+    creds: &auth::JiraCreds,
+    ws: &str,
+    key: &str,
+) -> Result<Option<String>, ApiError> {
+    const TTL: std::time::Duration = std::time::Duration::from_secs(300);
+    let ck = format!("{ws}\u{1f}{}", key.to_ascii_uppercase());
+    if let Some((at, v)) = s.proj_cache.lock().unwrap().get(&ck) {
+        if at.elapsed() < TTL {
+            return Ok(v.clone());
+        }
+    }
+    let (c, k) = (creds.clone(), key.to_ascii_uppercase());
+    let canonical = blocking(move || {
+        RealBackend::from_parts(&c.base, c.email.as_deref(), &c.token, c.bearer)
+            .project_key_if_accessible(&k)
+    })
+    .await?;
+    s.proj_cache
+        .lock()
+        .unwrap()
+        .insert(ck, (std::time::Instant::now(), canonical.clone()));
+    Ok(canonical)
+}
+
+/// Resolve which JIRA project a NEW conversation in `channel` is created in, and the
+/// label to tag it with (docs/MULTITENANCY.md). A channel IS a JIRA board/project:
+/// the channel's first segment must name a project the poster can access (`ENG`, or
+/// `ENG/backend` → project `ENG`, labelled `eng_backend`). There is NO default — you
+/// can't post without a real channel, so an unresolvable channel is refused (409).
+/// `creds` is the identity whose access is checked; `None` (a bot/webhook on the
+/// service account) trusts a project-key-shaped segment (the create fails if it's
+/// unreachable).
+async fn resolve_target(
+    s: &AppState,
+    creds: Option<&auth::JiraCreds>,
+    ws: &str,
+    channel: &str,
+) -> Result<(String, String), ApiError> {
+    let label = channel_slug(channel);
+    let top = channel.split('/').next().unwrap_or(channel).trim();
+    if looks_like_project_key(top) {
+        match creds {
+            Some(c) => {
+                if let Some(key) = project_access(s, c, ws, top).await? {
+                    return Ok((key, label));
+                }
+            }
+            None => return Ok((top.to_ascii_uppercase(), label)),
+        }
+    }
+    Err((
+        StatusCode::CONFLICT,
+        format!(
+            "\"{channel}\" isn't a board you can post to. A channel is a JIRA project \
+             you can access — pick one (e.g. a project key like ENG), or use \
+             PROJECT/topic for a sub-topic."
+        ),
+    ))
 }
 
 // --- chat -------------------------------------------------------------------
@@ -650,9 +881,8 @@ async fn send(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<SendReq
         return Ok(Json(OutcomeResp { kind: "coalesced", issue, comment: None }));
     }
 
-    // New conversation → a new JIRA issue.
-    let project = s.project.clone();
-    let slug = channel_slug(&r.channel);
+    // New conversation → a new JIRA issue in the channel's project.
+    let (project, slug) = resolve_target(&s, Some(&creds), &ws, &r.channel).await?;
     let summary = weavn::proto::summarize(&body, 80);
     let (c, b2, sum2, m2) = (creds.clone(), body.clone(), summary.clone(), ments.clone());
     let (key, status) = blocking(move || {
@@ -880,6 +1110,52 @@ async fn read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ReadQ
     Ok(Json(order.into_iter().map(|k| threads.remove(&k).unwrap()).collect()))
 }
 
+#[derive(Serialize)]
+struct ThreadFeedItem {
+    channel: String,
+    issue_key: String,
+    root_author: String,
+    snippet: String,
+    replies: i64,
+    last_author: String,
+    last_snippet: String,
+    ts: i64,
+}
+
+/// First line of `body`, collapsed to one line and capped at `max` chars.
+fn one_line(body: &str, max: usize) -> String {
+    let flat: String = body.split_whitespace().collect::<Vec<_>>().join(" ");
+    if flat.chars().count() > max {
+        format!("{}…", flat.chars().take(max).collect::<String>())
+    } else {
+        flat
+    }
+}
+
+/// Workspace-wide "Threads" feed: every conversation that has replies, across all
+/// boards the user can see, newest activity first (the cross-board inbox).
+async fn threads_feed(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Vec<ThreadFeedItem>>, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    let priv_all: HashSet<String> = weavn_store::private_channels(&s.pool, &ws).await.map_err(db_err)?.into_iter().collect();
+    let mine: HashSet<String> = weavn_store::my_private_channels(&s.pool, &ws, &user).await.map_err(db_err)?.into_iter().collect();
+    let rows = weavn_store::workspace_threads(&s.pool, &ws, 100).await.map_err(db_err)?;
+    let items = rows
+        .into_iter()
+        .filter(|t| !priv_all.contains(&t.channel) || mine.contains(&t.channel))
+        .map(|t| ThreadFeedItem {
+            channel: t.channel,
+            issue_key: t.issue_key,
+            root_author: t.root_author,
+            snippet: one_line(&t.root_body, 140),
+            replies: t.replies,
+            last_author: t.last_author,
+            last_snippet: one_line(&t.last_body, 100),
+            ts: t.last_at,
+        })
+        .collect();
+    Ok(Json(items))
+}
+
 #[derive(Deserialize)]
 struct ExportQuery {
     channel: String,
@@ -1028,8 +1304,7 @@ async fn upload(State(s): State<Shared>, headers: HeaderMap, mut mp: Multipart) 
     let filename = sanitize_filename(&filename);
     let body = if caption.trim().is_empty() { format!("📎 {filename}") } else { caption.trim().to_string() };
     let summary = weavn::proto::summarize(&body, 80);
-    let project = s.project.clone();
-    let slug = channel_slug(&channel);
+    let (project, slug) = resolve_target(&s, Some(&creds), &ws, &channel).await?;
     let (c, b2, sum2, fname, m2) = (creds.clone(), body.clone(), summary.clone(), filename.clone(), mime.clone());
     let (key, jid, fname2, mime2, size, status) = blocking(move || {
         let mut b = RealBackend::from_parts(&c.base, c.email.as_deref(), &c.token, c.bearer);
@@ -1121,8 +1396,11 @@ async fn seed(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<SeedReq
             continue;
         }
         let body = if sc.body.trim().is_empty() { format!("Welcome to {channel}.") } else { sc.body.trim().to_string() };
-        let project = s.project.clone();
-        let slug = channel_slug(&channel);
+        // A starter channel we can't map to a project is skipped, not fatal.
+        let Ok((project, slug)) = resolve_target(&s, Some(&creds), &ws, &channel).await else {
+            skipped.push(channel);
+            continue;
+        };
         let summary = weavn::proto::summarize(&body, 80);
         let (c, b2, sum2) = (creds.clone(), body.clone(), summary.clone());
         let (key, status) = blocking(move || {
@@ -1947,8 +2225,7 @@ async fn bot_post(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Bot
     if text.is_empty() {
         return Err(bad_request("missing text".to_string()));
     }
-    let project = s.project.clone();
-    let slug = channel_slug(&channel);
+    let (project, slug) = resolve_target(&s, None, &ws, &channel).await?;
     let summary = weavn::proto::summarize(&text, 80);
     let (b2, sum2) = (text.clone(), summary.clone());
     let (key, status) = blocking(move || {
@@ -2202,8 +2479,7 @@ async fn hook(State(s): State<Shared>, Path(token): Path<String>, Json(b): Json<
     if text.is_empty() {
         return Err(bad_request("missing 'text'".to_string()));
     }
-    let project = s.project.clone();
-    let slug = channel_slug(&channel);
+    let (project, slug) = resolve_target(&s, None, &ws, &channel).await?;
     let summary = weavn::proto::summarize(&text, 80);
     let (b2, sum2) = (text.clone(), summary.clone());
     let (key, status) = blocking(move || {

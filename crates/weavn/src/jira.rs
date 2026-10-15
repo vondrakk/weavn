@@ -498,33 +498,62 @@ pub mod real {
     }
 
     impl RealBackend {
-        /// Read-only: list accessible projects (first 50).
+        /// Read-only: list ALL accessible projects, paging through the search API
+        /// (used to import every board the user can access, not just the first 50).
         pub fn list_projects(&self) -> Result<Vec<ProjectRef>, String> {
+            let mut out: Vec<ProjectRef> = Vec::new();
+            let mut start = 0usize;
+            loop {
+                let start_s = start.to_string();
+                let resp = self
+                    .http
+                    .get(format!("{}/rest/api/3/project/search", self.base))
+                    .header("Authorization", &self.auth_header)
+                    .query(&[("maxResults", "50"), ("startAt", start_s.as_str())])
+                    .send()
+                    .map_err(|e| e.to_string())?;
+                let status = resp.status();
+                let v: Value = resp.json().map_err(|e| e.to_string())?;
+                if !status.is_success() {
+                    return Err(format!("project search {status}: {v}"));
+                }
+                let vals = v["values"].as_array().cloned().unwrap_or_default();
+                let n = vals.len();
+                for p in vals {
+                    if let Some(key) = p["key"].as_str() {
+                        out.push(ProjectRef {
+                            key: key.to_string(),
+                            name: p["name"].as_str().unwrap_or("").to_string(),
+                        });
+                    }
+                }
+                if n == 0 || v["isLast"].as_bool().unwrap_or(true) || out.len() >= 2000 {
+                    break;
+                }
+                start += n;
+            }
+            Ok(out)
+        }
+
+        /// Read-only: resolve a single project by key, returning its canonical key if
+        /// the user can access it, else `None` (not found / no permission). Used to
+        /// target a channel's project without the first-50 cap of `list_projects`.
+        pub fn project_key_if_accessible(&self, key: &str) -> Result<Option<String>, String> {
             let resp = self
                 .http
-                .get(format!("{}/rest/api/3/project/search", self.base))
+                .get(format!("{}/rest/api/3/project/{}", self.base, key))
                 .header("Authorization", &self.auth_header)
-                .query(&[("maxResults", "50")])
                 .send()
                 .map_err(|e| e.to_string())?;
             let status = resp.status();
+            if matches!(status.as_u16(), 403 | 404) {
+                return Ok(None);
+            }
             let v: Value = resp.json().map_err(|e| e.to_string())?;
             if !status.is_success() {
-                return Err(format!("project search {status}: {v}"));
+                return Err(format!("project lookup {status}: {v}"));
             }
-            Ok(v["values"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|p| {
-                            Some(ProjectRef {
-                                key: p["key"].as_str()?.to_string(),
-                                name: p["name"].as_str().unwrap_or("").to_string(),
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default())
+            Ok(v["key"].as_str().map(str::to_string))
         }
 
         /// Read-only: pull up to `max` issues of a project (oldest first) with comments.

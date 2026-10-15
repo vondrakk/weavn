@@ -47,6 +47,17 @@ entitlement (`active_seats`, `entitled`, `over`). The overage is what Sales/ops 
 to right-size — surfaced via the admin CLI today, and later an in-app banner / an
 account dashboard / a billing export.
 
+### Exception: the hosted free-tier hard cap
+
+"Never deny" holds for **licensed (commercial)** namespaces — paying customers are
+metered and warned, never interrupted. The **hosted free tier is the one exception**:
+it is a hard cap of 10 seats. On an *unlicensed* namespace, `seat_claim_enforced(...)`
+refuses the 11th *distinct* user at sign-in (HTTP 403 `workspace_full`) and creates no
+seat; the existing 10 keep working, and a user who already holds an active seat always
+re-admits. A commercial license lifts the cap and reverts the namespace to warn-only.
+Admission + claim run in one transaction serialized by a per-workspace advisory lock.
+See `docs/MULTITENANCY.md`.
+
 ## Data model (`0005_licensing.sql`)
 
 - `seat(workspace, user_id, display, email, active, first_seen, last_seen, released_at)` — PK (workspace,user_id)
@@ -58,7 +69,8 @@ Times are `timestamptz`/`date`; Rust reads them via `::text` casts and counts as
 
 ## Store API (`weavn-store`, module `license`)
 
-- `seat_claim(pool, ws, user_id, display, email) -> SeatClaim` — meter a sign-in (idempotent).
+- `seat_claim(pool, ws, user_id, display, email) -> SeatClaim` — meter a sign-in (idempotent, never denies).
+- `seat_claim_enforced(pool, ws, user_id, display, email) -> Admission` — meter with the hosted free-tier hard cap (`Admitted | Full`).
 - `seat_release(pool, ws, user_id)` / `seat_active_count` / `seats(...)`
 - `license_get` / `license_set` / `license_clear` / `license_is_current`
 - `entitlement(pool, ws)` and `usage_report(pool, ws)` — the right-sizing view.

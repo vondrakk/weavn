@@ -1,19 +1,39 @@
+# The SaaS gateway serves EVERY tenant host under the wildcard *.weavn.io — each
+# <subdomain>.weavn.io workspace plus the app.weavn.io apex redirector — all routed
+# to the one weavn-gateway Service. The gateway resolves the tenant from the Host
+# header (docs/MULTITENANCY.md).
+#
+# TLS is the wildcard cert in weavn-wildcard-tls (see wildcard-cert.yaml + the
+# DNS-01 issuer); there is deliberately NO cert-manager annotation here, because the
+# wildcard is issued by the standalone Certificate, not per-ingress.
+#
+# Coexistence with the marketing site: the exact hosts weavn.io / www.weavn.io are
+# owned by the weavn-web Ingress and win over this wildcard in nginx (exact >
+# wildcard), so only non-marketing subdomains land on the gateway.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: weavn-gateway
   namespace: weavn
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     # The web client sets an HttpOnly session cookie; keep bodies reasonable.
     nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    # Sticky sessions: the gateway keeps sessions in process memory (JIRA tokens are
+    # never persisted to any store, by design), so with >1 replica a client MUST be
+    # pinned to the pod that holds its session — otherwise requests round-robin to a
+    # pod that returns 401 "login required". Cookie affinity pins each client.
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "weavn_aff"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "86400"
+    nginx.ingress.kubernetes.io/session-cookie-samesite: "Lax"
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [app.weavn.io]
-      secretName: weavn-app-tls
+    - hosts: ["*.weavn.io"]
+      secretName: weavn-wildcard-tls
   rules:
-    - host: app.weavn.io
+    - host: "*.weavn.io"
       http:
         paths:
           - path: /

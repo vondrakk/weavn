@@ -51,7 +51,8 @@ if [ "${1:-}" = "--ensure" ]; then
   fi
   ensure_A "@"   "@"
   ensure_A "www" "www"
-  ensure_A "app" "app"   # app.weavn.io — the SaaS gateway (Phase 2)
+  ensure_A "app" "app"   # app.weavn.io — the SaaS gateway apex redirector
+  ensure_A "*"   "*"     # *.weavn.io — one A record per tenant subdomain (wildcard)
 elif [ -n "${1:-}" ]; then
   echo "usage: $0 [--ensure]" >&2; exit 2
 fi

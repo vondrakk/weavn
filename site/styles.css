@@ -90,6 +90,7 @@ section{position:relative}
 .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:21px;letter-spacing:-.03em}
 .brand img{width:30px;height:30px}
 .brand .dot{color:var(--faint);font-weight:600}
+.brand .n{color:var(--teal)}
 .nav-links{display:flex;align-items:center;gap:30px}
 .nav-links a{color:var(--muted);font-size:15px;font-weight:500;transition:color .15s}
 .nav-links a:hover{color:var(--text)}

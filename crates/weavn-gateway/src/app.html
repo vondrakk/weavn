@@ -3,20 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>weaveN</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<title>weavN</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=swap">
 <style>
   :root{
-    --bg:#eef1f6;--surface:#fff;--rail:#f4f1ec;--border:#e2e6ec;--fg:#1b2230;
-    --muted:#6a7686;--faint:#93a0b2;--accent:#5b4bd6;--accent-weak:rgba(91,76,214,.12);
-    --thread:#b9842f;--ok:#1f9d6b;--font:"IBM Plex Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+    --bg:#eef1f6;--surface:#fff;--rail:#f4f1ec;--border:#e2e6ec;--fg:#0F172A;
+    --muted:#6a7686;--faint:#93a0b2;--accent:#4F46E5;--accent-weak:rgba(79,70,229,.12);
+    --thread:#06B6D4;--ok:#1f9d6b;--font:"IBM Plex Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
     color-scheme:light;
   }
   @media(prefers-color-scheme:dark){:root{
-    --bg:#0d1117;--surface:#161c24;--rail:#14181f;--border:#28323f;--fg:#e6ecf4;
-    --muted:#93a0b2;--faint:#6b7889;--accent:#9b8cff;--accent-weak:rgba(155,140,255,.16);--thread:#d8a94e;--ok:#34c089;color-scheme:dark;}}
+    --bg:#0B1120;--surface:#131d33;--rail:#0F172A;--border:#28323f;--fg:#E7ECF5;
+    --muted:#93a0b2;--faint:#6b7889;--accent:#8b84ff;--accent-weak:rgba(139,132,255,.18);--thread:#22c6e0;--ok:#34c089;color-scheme:dark;}}
   *{box-sizing:border-box}html,body{height:100%}
   body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px}
+  .mi{font-family:'Material Symbols Outlined';font-weight:normal;font-style:normal;font-size:18px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;direction:ltr;font-feature-settings:'liga';-webkit-font-smoothing:antialiased;vertical-align:-4px;flex:none}
+  .snav .mi,.chbar .mi,.kk .mi{font-size:17px}
+  .mi.filled{font-variation-settings:'FILL' 1}
   .hidden{display:none!important}
   a{color:var(--accent);text-decoration:none}
   /* login */
@@ -35,16 +38,49 @@
   .site input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:14px;padding:11px 10px;text-align:center;outline:none}
   .btn{width:100%;margin-top:18px;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
   .err{color:#cf3f36;font-size:12px;text-align:center;min-height:16px;margin-top:10px}
+  .fine{color:var(--faint);font-size:11px;line-height:1.55;text-align:center;margin:14px 2px 0}
+  .fine a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
   /* app */
   #app{height:100%;display:grid;grid-template-rows:52px 1fr}
   .top{display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
   .top .nm{font-weight:600;font-size:15px}.top .sp{flex:1}
-  .kk{font-size:11px;color:var(--faint);border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-family:var(--mono);cursor:pointer}
+  .kk{font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-family:var(--mono);cursor:pointer}
+  .kk:hover{color:var(--fg);border-color:var(--accent)}
   .me{display:flex;align-items:center;gap:8px}
   .meav{width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:11px}
   .who{color:var(--muted);font-size:13px}
   .lo{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:7px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12px}
-  .main{display:flex;flex-direction:column;min-height:0}
+  .main{display:grid;grid-template-columns:258px minmax(0,1fr);min-height:0;height:100%}
+  .main.tp{grid-template-columns:258px minmax(0,1fr) 360px}
+  .side{background:var(--rail);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .side-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;border-bottom:1px solid var(--border)}
+  .side-ws{font-weight:700;font-size:15px}
+  .side-nav{display:flex;flex-direction:column;gap:1px;padding:6px}
+  .snav{display:flex;align-items:center;gap:9px;text-align:left;border:0;background:transparent;color:var(--muted);border-radius:7px;padding:6px 9px;font:inherit;font-size:13px;cursor:pointer}
+  .snav:hover{background:var(--accent-weak);color:var(--fg)}
+  .side-chead{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 3px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .side-chead button{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:14px;line-height:1}
+  .side-chead button:hover{color:var(--accent)}
+  .chead-ctl{display:flex;align-items:center;gap:4px}
+  #activitytoggle{border:1px solid var(--border);border-radius:999px;padding:1px 9px;font-size:10px;letter-spacing:.03em;color:var(--muted);background:var(--bg)}
+  #activitytoggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .side-chans{flex:1;overflow:auto;padding:2px 6px 10px}
+  .side-chans .crow.active{background:var(--accent-weak)}
+  .side-chans .crow.active .cn{color:var(--accent);font-weight:600}
+  .center{display:flex;flex-direction:column;min-width:0;min-height:0}
+  .thread{display:flex;flex-direction:column;min-width:0;min-height:0;border-left:1px solid var(--border);background:var(--surface)}
+  .thread.hidden{display:none}
+  .thead{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600}
+  .thead .sp{flex:1}
+  .tbody{flex:1;overflow:auto;padding:12px 14px}
+  .troot{border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px}
+  .tbody .rep{margin-bottom:9px}
+  .tcompose{border-top:1px solid var(--border);padding:10px 12px}
+  .tcompose form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .tcompose input#threadinput{flex:1;min-width:120px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;font:inherit;background:var(--bg);color:var(--fg);outline:none}
+  .tcompose button[type=submit]{background:var(--accent);color:#fff;border:0;border-radius:9px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer}
+  .threadbtn{margin:6px 0 0 34px;border:1px solid var(--border);background:transparent;color:var(--thread);border-radius:8px;padding:3px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .threadbtn:hover{background:var(--accent-weak);color:var(--accent);border-color:var(--accent)}
   .chbar{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);align-items:center}
   .chbar input#channel{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 11px;font:inherit;background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:13px;outline:none}
   .chbar button{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}
@@ -53,13 +89,19 @@
   .pchip{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:999px;padding:5px 11px;font:inherit;font-size:12px;cursor:pointer;font-family:var(--mono)}
   .pchip:hover{border-color:var(--accent);color:var(--accent)}
   .pmuted{color:var(--faint);font-size:12px;padding:3px}
-  .stream{flex:1;overflow:auto;padding:14px 16px;max-width:860px;width:100%;margin:0 auto}
-  .convo{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;background:var(--surface)}
-  .ch{display:flex;align-items:center;gap:9px;margin-bottom:5px}
-  .av{width:28px;height:28px;border-radius:7px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:11px;flex:none}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:7px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loadmsg{color:var(--muted)}
+  .stream{flex:1;overflow:auto;padding:10px 16px 16px;max-width:900px;width:100%;margin:0 auto}
+  /* Slack-style river: flat rows, no cards, hover reveals actions + a hover tint */
+  .convo{position:relative;border:0;border-radius:8px;padding:5px 12px 7px;margin:0;background:transparent}
+  .convo:hover{background:var(--accent-weak)}
+  .convo+.convo{margin-top:1px}
+  .ch{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+  .av{width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:11px;flex:none}
   .who2{font-weight:600}.time{color:var(--faint);font-size:12px}
-  .key{margin-left:auto;font-family:var(--mono);font-size:11px}
-  .lines{margin:2px 0 0 37px}.lines p{margin:0 0 3px;white-space:pre-wrap}
+  .key{font-family:var(--mono);font-size:11px}
+  .lines{margin:0 0 0 34px}.lines p{margin:0 0 3px;white-space:pre-wrap}
   .reps{margin:8px 0 0 37px;border-left:2px solid var(--border);padding-left:12px;display:flex;flex-direction:column;gap:6px}
   .rep{font-size:13px}.rep .ra{font-weight:600}.fj{font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-weak);border-radius:4px;padding:1px 5px}
   .replybar{margin:8px 0 0 37px;display:flex;gap:6px}
@@ -74,6 +116,40 @@
   .palette{position:absolute;bottom:58px;left:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
   .palette span{font-size:18px;padding:4px;cursor:pointer;border-radius:6px;text-align:center}
   .palette span:hover{background:var(--accent-weak)}
+  /* view tabs: Updates | Threads | Activity */
+  .viewtabs{display:flex;align-items:center;gap:2px;padding:6px 12px 0;border-bottom:1px solid var(--border);background:var(--surface)}
+  .viewtab{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:7px 12px;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .viewtab:hover{color:var(--fg)}
+  .viewtab.on{color:var(--accent);border-bottom-color:var(--accent)}
+  .viewtab .vb{background:var(--accent);color:#fff;border-radius:9px;font-size:10px;font-weight:700;padding:0 5px;font-variant-numeric:tabular-nums}
+  #updatesview,.feedview{flex:1;display:flex;flex-direction:column;min-height:0}
+  .feedview.hidden{display:none}
+  /* filter + sort bar (Updates river) */
+  .filterbar{display:flex;align-items:center;gap:8px;padding:7px 16px;border-bottom:1px solid var(--border);background:var(--rail);flex-wrap:wrap}
+  .filterbar .fq{flex:1;min-width:120px;border:1px solid var(--border);border-radius:8px;padding:6px 10px 6px 30px;font:inherit;font-size:13px;background:var(--surface);color:var(--fg);outline:none;background-image:none}
+  .filterbar .fqwrap{position:relative;flex:1;min-width:140px;display:flex;align-items:center}
+  .filterbar .fqwrap .mi{position:absolute;left:8px;color:var(--faint);font-size:16px;pointer-events:none}
+  .filterbar select{border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;font-size:12px;background:var(--surface);color:var(--fg);outline:none;cursor:pointer}
+  .filterbar .fcount{color:var(--faint);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  /* workspace feeds (Threads / Activity) */
+  .feedhead{padding:12px 18px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .feedhead .fh-sub{font-weight:400;color:var(--muted);font-size:12px}
+  .feedbody{flex:1;overflow:auto;padding:8px 0}
+  .fitem{display:flex;gap:11px;padding:11px 18px;cursor:pointer;border-bottom:1px solid var(--border)}
+  .fitem:hover{background:var(--accent-weak)}
+  .fitem.unread{background:var(--accent-weak)}
+  .fitem .fav{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px;flex:none}
+  .fitem .fmain{min-width:0;flex:1}
+  .fitem .ftop{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .fitem .fa{font-weight:600}
+  .fitem .fch{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-weak);border-radius:5px;padding:1px 6px}
+  .fitem .fkind{color:var(--muted);font-size:12px}
+  .fitem .ftime{margin-left:auto;color:var(--faint);font-size:11px;white-space:nowrap}
+  .fitem .fbody{color:var(--muted);font-size:13px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fitem .flast{color:var(--fg);font-size:12px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fitem .flast b{font-weight:600}
+  .fitem .frep{color:var(--thread);font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;margin-top:4px}
+  .feedempty{color:var(--faint);text-align:center;padding:48px 20px}
   /* quick switcher */
   .ovl{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:start center;padding-top:14vh;z-index:10}
   .sw{width:100%;max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -94,7 +170,7 @@
   .notifpanel .ni .ss{color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .notifpanel .ni .cn2{color:var(--accent)}
   .kwchip{display:inline-block;background:var(--accent-weak);color:var(--accent);border-radius:10px;padding:1px 8px;font-size:11px;margin:2px;cursor:pointer}
-  .chanlist{display:none;flex-direction:column;gap:1px;padding:8px;border-bottom:1px solid var(--border);background:var(--rail);max-height:280px;overflow:auto}
+  .chanlist{display:none;position:fixed;top:92px;left:268px;width:340px;max-height:72vh;flex-direction:column;gap:1px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:0 16px 48px rgba(0,0,0,.34);z-index:60;overflow:auto}
   .crow{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;cursor:pointer;color:var(--fg);font-size:13px}
   .crow:hover{background:var(--accent-weak)}
   .crow.arch{opacity:.5}
@@ -104,6 +180,10 @@
   .crow .cc{color:var(--faint);font-size:11px;font-family:var(--mono)}
   .crow .ar{color:var(--faint);font-size:11px;cursor:pointer}
   .csec{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:7px 8px 2px}
+  .chhead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 6px 8px;font-size:11px;color:var(--faint)}
+  .chhead #rescanbtn{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:7px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer}
+  .chhead #rescanbtn:hover{color:var(--accent);border-color:var(--accent)}
+  .crow .cn .cboard{color:var(--faint);font-size:11px;font-weight:400;margin-left:6px}
   .crow.nested .cn{padding-left:12px}
   .lines code,.rep code{background:var(--accent-weak);color:var(--accent);padding:1px 4px;border-radius:4px;font-family:var(--mono);font-size:.92em}
   .lines pre{background:var(--rail);border:1px solid var(--border);border-radius:8px;padding:10px 12px;overflow:auto;margin:6px 0}
@@ -119,16 +199,16 @@
   .unfurl .uft{font-weight:600;color:var(--fg);font-size:13px}
   .unfurl .ufd{color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .unfurl .ufh{color:var(--faint);font-size:11px;margin-top:3px}
-  .atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .atts{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0 34px}
   .att-img img{max-width:260px;max-height:200px;border-radius:8px;border:1px solid var(--border);display:block}
   .att-file{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--fg);text-decoration:none}
   .att-file:hover{border-color:var(--accent)}
   .att-file .asz{color:var(--faint);font-size:11px}
-  .acts2{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .acts2{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0 34px}
   .actbtn{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:7px;padding:4px 12px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
   .actbtn:hover{border-color:var(--accent);color:var(--accent)}
   .actbtn:disabled{opacity:.5;cursor:default}
-  .rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;align-items:center}
+  .rx{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 0 34px;align-items:center}
   .rchip{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:1px 8px;font-size:12px;cursor:pointer;color:var(--muted);font-variant-numeric:tabular-nums}
   .rchip.mine{border-color:var(--accent);background:var(--accent-weak);color:var(--accent)}
   .rxadd{border:1px dashed var(--border);background:transparent;border-radius:12px;padding:1px 7px;font-size:12px;cursor:pointer;color:var(--faint);line-height:1.4}
@@ -161,9 +241,12 @@
   .stmenu .si{padding:7px 12px;font-size:13px;cursor:pointer;color:var(--fg);white-space:nowrap}
   .stmenu .si:hover{background:var(--accent-weak)}
   .starthint{padding:7px 9px 2px;font-size:11px;color:var(--faint)}
-  .acts{margin-left:auto;display:flex;align-items:center;gap:3px}
-  .iconbtn{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:13px;padding:0 3px;opacity:.55;line-height:1}
-  .iconbtn:hover{opacity:1}
+  /* hover toolbar, Slack-style: floats at the row's top-right, hidden until hover */
+  .acts{position:absolute;top:-10px;right:10px;display:none;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px 4px;box-shadow:0 2px 8px rgba(0,0,0,.12);z-index:2}
+  .convo:hover .acts{display:flex}
+  .acts .key{margin-left:4px;padding-left:6px;border-left:1px solid var(--border)}
+  .iconbtn{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 4px;line-height:1;border-radius:6px}
+  .iconbtn:hover{opacity:1;color:var(--accent);background:var(--accent-weak)}
   .pinbtn.on{opacity:1;filter:none}
   .convo.pinned{border-left:2px solid var(--thread);padding-left:10px}
   .convo.deleted .lines{opacity:.6}
@@ -177,71 +260,118 @@
 <section id="login">
   <form class="card" id="loginform" autocomplete="off">
     <div class="brand">
-      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6"><path d="M3 6h18M3 12h18M3 18h18" stroke-opacity=".35"/><path d="M6 3v18M12 3v18M18 3v18" stroke="var(--thread)"/></svg>
-      <b class="wm">weave<span class="n">N</span></b>
+      <svg viewBox="0 0 120 120" fill="none" aria-label="weavN"><defs><linearGradient id="wmA1" x1="18" y1="92" x2="74" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B1B7D"/><stop offset="1" stop-color="#4F46E5"/></linearGradient><linearGradient id="wmB1" x1="50" y1="38" x2="100" y2="90" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4F46E5"/><stop offset="1" stop-color="#06B6D4"/></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="15"><path d="M24 32 L48 90 L70 38" stroke="url(#wmA1)"/><path d="M50 38 L72 90 L96 32" stroke="url(#wmB1)"/></g></svg>
+      <b class="wm">weav<span class="n">N</span></b>
     </div>
-    <h1>Connect your JIRA</h1>
-    <p class="sub">Your JIRA identity is your <span class="wm">weave<span class="n">N</span></span> identity.</p>
-    <label for="site">JIRA site</label>
-    <div class="site"><span class="f">https://</span><input id="site" value="" placeholder="your-company" spellcheck="false"><span class="f r">.atlassian.net</span></div>
-    <label for="email">Account email</label>
-    <input class="in" id="email" type="email" autocomplete="off" placeholder="you@company.com">
-    <label for="token">API token</label>
-    <input class="in" id="token" type="password" autocomplete="new-password" data-1p-ignore data-lpignore="true" data-bwignore placeholder="ATATT…">
-    <p class="sub" style="margin:6px 0 0;font-size:11px">From id.atlassian.com → API tokens. Validated against JIRA; not stored in the clear.</p>
+    <h1 id="loginh1">Connect your JIRA</h1>
+    <p class="sub" id="loginsub">Your JIRA identity is your <span class="wm">weav<span class="n">N</span></span> identity.</p>
+    <label for="site" id="sitelabel">JIRA site</label>
+    <div class="site" id="sitewrap"><span class="f">https://</span><input id="site" value="" placeholder="your-company" spellcheck="false"><span class="f r">.atlassian.net</span></div>
+    <div id="credfields">
+      <label for="email">Account email</label>
+      <input class="in" id="email" type="email" autocomplete="off" placeholder="you@company.com">
+      <label for="token">API token</label>
+      <input class="in" id="token" type="password" autocomplete="new-password" data-1p-ignore data-lpignore="true" data-bwignore placeholder="ATATT…">
+      <p class="sub" id="tokenhint" style="margin:6px 0 0;font-size:11px">From id.atlassian.com → API tokens. Validated against JIRA; not stored in the clear.</p>
+    </div>
     <button class="btn" id="loginbtn" type="submit">Connect</button>
     <div class="err" id="loginerr"></div>
+    <p class="fine">Your API token is <b>never stored</b> — it only passes through to act as you in JIRA for this session, then it's discarded. By connecting you agree to our <a href="https://weavn.io/terms" target="_blank" rel="noopener">Terms of Service</a>, <a href="https://weavn.io/eula" target="_blank" rel="noopener">EULA</a> &amp; <a href="https://weavn.io/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
   </form>
 </section>
 
 <section id="app" class="hidden">
   <div class="top">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6"><path d="M6 3v18M12 3v18M18 3v18" stroke="var(--thread)"/></svg>
-    <span class="nm wm">weave<span class="n">N</span></span>
-    <button class="kk" id="switchbtn" title="Quick switch (⌘K)">⌘K</button>
-    <button class="kk" id="chansbtn" title="Channels">≡ Channels</button>
-    <button class="kk" id="savedbtn" title="Saved items">★ Saved</button>
-    <button class="kk" id="searchbtn" title="Search messages">🔍 Search</button>
-    <button class="kk" id="startersbtn" title="Suggested starter channels">✨ Starter</button>
-    <button class="kk" id="dmsbtn" title="Direct messages (encrypted)">✉ DMs</button>
+    <svg width="20" height="20" viewBox="0 0 120 120" fill="none" aria-label="weavN"><defs><linearGradient id="wmA2" x1="18" y1="92" x2="74" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B1B7D"/><stop offset="1" stop-color="#4F46E5"/></linearGradient><linearGradient id="wmB2" x1="50" y1="38" x2="100" y2="90" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4F46E5"/><stop offset="1" stop-color="#06B6D4"/></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="15"><path d="M24 32 L48 90 L70 38" stroke="url(#wmA2)"/><path d="M50 38 L72 90 L96 32" stroke="url(#wmB2)"/></g></svg>
+    <span class="nm wm">weav<span class="n">N</span></span>
     <a class="kk" id="dash" target="_blank" rel="noopener" href="#">Dashboards ↗</a>
     <span class="pres" id="pres" title="People here now"></span>
     <span class="pres" id="onclock" title="On the clock"></span>
     <span class="sp"></span>
-    <button class="statuschip" id="statuschip" title="Set a status">＋ Set status</button>
-    <button class="kk" id="clockbtn" title="Clock in / out">⏱ Clock in</button>
-    <button class="kk" id="bellbtn" title="Notifications">🔔<span id="bellbadge" class="nbadge" style="display:none"></span></button>
+    <button class="statuschip" id="statuschip" title="Set a status"><span class="mi">add</span> Set status</button>
+    <button class="kk" id="clockbtn" title="Clock in / out"><span class="mi">timer</span> Clock in</button>
+    <button class="kk" id="bellbtn" title="Notifications"><span class="mi">notifications</span><span id="bellbadge" class="nbadge" style="display:none"></span></button>
     <button class="kk" id="dndbtn" title="Do not disturb">DND</button>
     <div class="me"><span class="meav" id="meav"></span><span class="who" id="who"></span></div>
     <button class="lo" id="logout">Sign out</button>
   </div>
   <div class="main">
-    <div class="chbar">
-      <button id="projects">▾ Projects</button>
-      <input id="channel" value="eng / backend / deploys" spellcheck="false">
-      <button id="load">Load</button>
-      <label style="margin:0;display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px"><input type="checkbox" id="subtree"> subtree</label>
-      <button id="exportbtn" title="Download this channel's transcript (Markdown)">⤓ Export</button>
-      <button id="chanacl" title="Channel privacy & members">🔒 Members</button>
-    </div>
-    <div class="topic" id="topic"></div>
-    <div class="projlist" id="projlist" style="display:none"></div>
-    <div class="chanlist" id="chanlist"></div>
-    <div class="stream" id="stream"><div class="empty">Press <b>⌘K</b> or click <b>Projects</b> to open a channel — or type below to start a conversation.</div></div>
-    <div class="typing" id="typing"></div>
-    <div class="composer">
-      <div class="mentions hidden" id="mentions"></div>
-      <div class="palette hidden" id="palette"></div>
-      <form id="sendform">
-        <button type="button" class="emojibtn" id="emojibtn" title="Emoji">🙂</button>
-        <button type="button" class="emojibtn" id="attachbtn" title="Attach a file">📎</button>
-        <button type="button" class="emojibtn" id="laterbtn" title="Send later / remind me">⏰</button>
-        <input type="file" id="fileinput" hidden>
-        <input id="body" placeholder="Message this channel — it becomes a JIRA issue" autocomplete="off">
-        <button type="submit">Send</button>
-      </form>
-    </div>
+    <aside class="side">
+      <div class="side-top"><span class="side-ws wm">weav<span class="n">N</span></span><button class="kk" id="switchbtn" title="Quick switch (⌘K)">⌘K</button></div>
+      <div class="side-nav">
+        <button class="snav" id="savedbtn"><span class="mi">bookmark</span> Saved items</button>
+        <button class="snav" id="searchbtn"><span class="mi">search</span> Search messages</button>
+        <button class="snav" id="dmsbtn"><span class="mi">mail</span> Direct messages</button>
+        <button class="snav" id="startersbtn"><span class="mi">auto_awesome</span> Starter channels</button>
+      </div>
+      <div class="side-chead"><span>Channels</span><span class="chead-ctl"><button id="activitytoggle" title="Toggle: show only channels with new activity">All</button><button id="rescanbtn" title="Re-scan JIRA for boards"><span class="mi">refresh</span></button></span></div>
+      <div class="side-chans" id="sidechans"><div class="pmuted">Loading channels…</div></div>
+    </aside>
+    <section class="center">
+      <div class="viewtabs">
+        <button class="viewtab on" data-v="updates" title="The open board's message river"><span class="mi">forum</span> Updates</button>
+        <button class="viewtab" data-v="threads" title="Every threaded conversation across your boards"><span class="mi">comment</span> Threads</button>
+        <button class="viewtab" data-v="activity" title="Mentions &amp; alerts across your boards"><span class="mi">notifications</span> Activity<span class="vb" id="actbadge" style="display:none"></span></button>
+      </div>
+      <div id="updatesview">
+        <div class="chbar">
+          <input id="channel" value="" spellcheck="false" placeholder="project / sub-topic">
+          <button id="load">Load</button>
+          <label style="margin:0;display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px"><input type="checkbox" id="subtree"> subtree</label>
+          <span style="flex:1"></span>
+          <button id="projects" title="Browse projects"><span class="mi">folder_open</span> Projects</button>
+          <button id="exportbtn" title="Download this channel's transcript (Markdown)"><span class="mi">download</span> Export</button>
+          <button id="chanacl" title="Channel privacy &amp; members"><span class="mi">lock</span> Members</button>
+        </div>
+        <div class="topic" id="topic"></div>
+        <div class="projlist" id="projlist" style="display:none"></div>
+        <div class="filterbar" id="filterbar" style="display:none">
+          <span class="fqwrap"><span class="mi">search</span><input class="fq" id="fq" placeholder="Filter this board…" autocomplete="off" spellcheck="false"></span>
+          <select id="fstatus" title="Filter by status"><option value="">All statuses</option></select>
+          <select id="fsort" title="Sort order">
+            <option value="recent">Recent activity ↓</option>
+            <option value="old">Oldest first</option>
+            <option value="new">Newest first</option>
+          </select>
+          <span class="fcount" id="fcount"></span>
+        </div>
+        <div class="stream" id="stream"><div class="empty">Pick a channel on the left, or press <b>⌘K</b> to jump to one.</div></div>
+        <div class="typing" id="typing"></div>
+        <div class="composer">
+          <div class="mentions hidden" id="mentions"></div>
+          <div class="palette hidden" id="palette"></div>
+          <form id="sendform">
+            <button type="button" class="emojibtn" id="emojibtn" title="Emoji"><span class="mi">mood</span></button>
+            <button type="button" class="emojibtn" id="attachbtn" title="Attach a file"><span class="mi">attach_file</span></button>
+            <button type="button" class="emojibtn" id="laterbtn" title="Send later / remind me"><span class="mi">schedule</span></button>
+            <input type="file" id="fileinput" hidden>
+            <input id="body" placeholder="Message this channel — it becomes a JIRA issue" autocomplete="off">
+            <button type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+      <div class="feedview hidden" id="threadsview">
+        <div class="feedhead"><span class="mi">comment</span> Threads <span class="fh-sub">— conversations with replies, across your boards</span></div>
+        <div class="feedbody" id="threadsfeed"></div>
+      </div>
+      <div class="feedview hidden" id="activityview">
+        <div class="feedhead"><span class="mi">notifications</span> Activity <span class="fh-sub">— mentions &amp; alerts across your boards</span></div>
+        <div class="feedbody" id="activityfeed"></div>
+      </div>
+    </section>
+    <aside class="thread hidden" id="threadpane">
+      <div class="thead"><b>Thread</b><span class="sp"></span><button class="kk" id="threadclose" title="Close thread"><span class="mi">close</span></button></div>
+      <div class="tbody" id="threadbody"></div>
+      <div class="tcompose">
+        <form id="threadform">
+          <input id="threadinput" placeholder="Reply…" autocomplete="off">
+          <label class="bcl" title="Also surface this reply at the channel level"><input type="checkbox" id="threadbc"> ↗ channel</label>
+          <button type="submit">Reply</button>
+        </form>
+      </div>
+    </aside>
   </div>
+  <div class="chanlist" id="chanlist"></div>
 </section>
 
 <div class="ovl hidden" id="overlay"><div class="sw">
@@ -294,17 +424,42 @@ function renderMd(text){
 function projName(key){const p=PROJECTS.find(p=>p.key===key);return p?p.name:'';}
 
 async function me(){try{const r=await api('/auth/me');if(r.ok)return await r.json();}catch(e){}return null;}
+let USAGE=null;
+// Seat-usage banner: on a licensed (commercial) workspace over entitlement, warn;
+// on free, nudge as it fills toward the 10-seat cap. Injected above the app.
+function renderUsage(u){
+  let bar=$('#usagebar');
+  if(!u || (!u.over && !(!u.licensed && u.entitled && u.active_seats>=u.entitled-1))){
+    if(bar) bar.remove(); return;
+  }
+  if(!bar){ bar=document.createElement('div'); bar.id='usagebar';
+    bar.style.cssText='padding:7px 14px;font-size:12px;text-align:center;border-bottom:1px solid var(--border)';
+    $('#app').insertBefore(bar,$('#app').firstChild); }
+  if(u.over>0){
+    bar.style.background='var(--accent-weak)'; bar.style.color='var(--fg)';
+    bar.textContent=u.licensed
+      ? `Usage: ${u.active_seats} active seats — ${u.over} over your licensed ${u.entitled}. Let’s right-size your plan.`
+      : `${u.active_seats} seats in use, over the free ${u.entitled}.`;
+  } else {
+    bar.style.background='var(--surface)'; bar.style.color='var(--faint)';
+    bar.textContent=`${u.active_seats} of ${u.entitled} free seats in use.`;
+  }
+}
 async function showApp(sess){
   SITE=(sess.site||'').replace(/\/$/,'');
   MEID=sess.subject||''; MENAME=sess.display_name||sess.email||sess.subject||'';
   $('#login').classList.add('hidden');$('#app').classList.remove('hidden');
   $('#who').textContent=MENAME;
   $('#meav').textContent=initials(MENAME);
+  renderUsage(USAGE);
   await loadSaved(); loadState();
-  ensureProjects(); loadChannel(); connectWS(); firstRun(); loadAvailability(); loadNotifications();
+  renderSidebar(); connectWS(); loadAvailability(); loadNotifications();
 }
 let NOTIFS={unread:0,items:[]};
-function renderBell(n){ const b=$('#bellbadge'); if(n>0){b.textContent=n>99?'99+':n; b.style.display='';} else {b.style.display='none';} }
+function renderBell(n){
+  const b=$('#bellbadge'); if(n>0){b.textContent=n>99?'99+':n; b.style.display='';} else {b.style.display='none';}
+  const a=$('#actbadge'); if(a){ if(n>0){a.textContent=n>99?'99+':n; a.style.display='';} else {a.style.display='none';} }
+}
 async function loadNotifications(){ try{const r=await api('/notifications'); if(!r.ok)return; NOTIFS=await r.json(); renderBell(NOTIFS.unread);}catch(e){} }
 async function loadKeywordsInto(el){
   const r=await api('/keywords'); if(!r.ok)return; const kws=await r.json();
@@ -335,7 +490,7 @@ $('#bellbtn').addEventListener('click',openNotifPanel);
 $('#laterbtn').addEventListener('click',()=>{
   document.querySelectorAll('.stmenu').forEach(m=>m.remove());
   const menu=document.createElement('div'); menu.className='stmenu';
-  menu.innerHTML='<div class="sh">Schedule</div><div class="si" data-act="send">⏰ Send this later…</div><div class="si" data-act="remind">🔔 Remind me…</div>';
+  menu.innerHTML='<div class="sh">Schedule</div><div class="si" data-act="send"><span class="mi">schedule</span> Send this later…</div><div class="si" data-act="remind"><span class="mi">notifications</span> Remind me…</div>';
   document.body.appendChild(menu);
   const bb=$('#laterbtn').getBoundingClientRect(); menu.style.left=bb.left+'px'; menu.style.top=Math.max(8,bb.top-92)+'px';
   menu.querySelectorAll('.si').forEach(el=>el.addEventListener('click',async()=>{
@@ -356,7 +511,7 @@ $('#laterbtn').addEventListener('click',()=>{
 });
 async function loadAvailability(){ try{const r=await api('/availability'); if(r.ok) renderAvail(await r.json());}catch(e){} }
 function renderAvail(a){
-  const btn=$('#clockbtn'); btn.textContent=a.on?'⏹ Clock out':'⏱ Clock in'; btn.classList.toggle('on',!!a.on);
+  const btn=$('#clockbtn'); btn.innerHTML=a.on?'<span class="mi">timer_off</span> Clock out':'<span class="mi">timer</span> Clock in'; btn.classList.toggle('on',!!a.on);
   const el=$('#onclock');
   if(a.people&&a.people.length){ el.innerHTML='<span class="dot" style="background:#e2b63c"></span><span class="pn">'+a.people.length+' on the clock</span>'; el.title='On the clock: '+a.people.map(p=>esc(p.display)).join(', '); }
   else { el.innerHTML=''; el.title=''; }
@@ -368,13 +523,56 @@ $('#clockbtn').addEventListener('click',async()=>{
 });
 function showLogin(){$('#app').classList.add('hidden');$('#login').classList.remove('hidden');if(WS){WS.onclose=null;WS.close();WS=null;}}
 
+// Tenancy mode: 'dev' (site from form), 'apex' (pick a workspace -> redirect), or
+// 'tenant' (site pinned by the host subdomain). Set from /auth/config on boot.
+let CFG={multitenant:false,base_domain:null,subdomain:null}, LOGINMODE='dev';
+async function loadAuthConfig(){ try{const r=await api('/auth/config'); if(r.ok)CFG=await r.json();}catch(e){} }
+function configureLogin(){
+  const hide=(el,on)=>{ if(el) el.classList.toggle('hidden',on); };
+  if(CFG.multitenant && !CFG.subdomain){
+    LOGINMODE='apex';
+    $('#loginh1').textContent='Find your workspace';
+    $('#loginsub').innerHTML='Enter your company’s JIRA site to open its <span class="wm">weav<span class="n">N</span></span> workspace.';
+    $('#sitelabel').textContent='JIRA site';
+    hide($('#sitewrap'),false); hide($('#credfields'),true);
+    $('#loginbtn').textContent='Go to workspace →';
+  } else if(CFG.multitenant && CFG.subdomain){
+    LOGINMODE='tenant';
+    $('#loginh1').textContent='Sign in to '+CFG.subdomain;
+    $('#loginsub').innerHTML=CFG.subdomain+'.'+CFG.base_domain+' · backed by '+CFG.subdomain+'.atlassian.net';
+    hide($('#sitewrap'),true); hide($('#credfields'),false);
+    $('#loginbtn').textContent='Connect';
+  } else {
+    LOGINMODE='dev';
+    hide($('#sitewrap'),false); hide($('#credfields'),false);
+  }
+}
 $('#loginform').addEventListener('submit',async e=>{
-  e.preventDefault();const b=$('#loginbtn');b.disabled=true;$('#loginerr').textContent='';
+  e.preventDefault();const b=$('#loginbtn');$('#loginerr').textContent='';
+  // Apex: no auth here — redirect to the workspace's own subdomain.
+  if(LOGINMODE==='apex'){
+    const slug=$('#site').value.trim().toLowerCase().replace(/[^a-z0-9-]/g,'');
+    if(!slug){$('#loginerr').textContent='Enter your JIRA site, e.g. acme';return;}
+    location.href='https://'+slug+'.'+CFG.base_domain+'/';
+    return;
+  }
+  b.disabled=true; const blabel=b.textContent; b.textContent='Connecting…';
+  const reset=m=>{$('#loginerr').textContent=m;b.disabled=false;b.textContent=blabel;};
   try{
-    const r=await api('/auth/jira',{method:'POST',body:JSON.stringify({site:$('#site').value.trim(),email:$('#email').value.trim(),token:$('#token').value})});
-    if(!r.ok){$('#loginerr').textContent=await r.text();b.disabled=false;return;}
-    showApp(await r.json());
-  }catch(e){$('#loginerr').textContent='Connection error';b.disabled=false;}
+    const body={email:$('#email').value.trim(),token:$('#token').value};
+    if(LOGINMODE==='dev') body.site=$('#site').value.trim(); // tenant: site pinned by host
+    const r=await api('/auth/jira',{method:'POST',body:JSON.stringify(body)});
+    if(r.status===403){ // free-tier cap reached
+      let m='This workspace is full on the free plan.';
+      try{const j=await r.json(); if(j&&j.message)m=j.message;}catch(e){}
+      reset(m); return;
+    }
+    if(!r.ok){reset(await r.text());return;}
+    const data=await r.json();
+    if(data.redirect){ b.textContent='Opening your workspace…'; location.href=data.redirect; return; }
+    USAGE=data.usage||null;
+    showApp(data.session);
+  }catch(e){reset('Connection error');}
 });
 $('#logout').addEventListener('click',async()=>{await api('/auth/logout');showLogin();});
 $('#load').addEventListener('click',loadChannel);
@@ -403,53 +601,70 @@ $('#projects').addEventListener('click',async()=>{
 
 // open a channel: optionally backfill (for a project key), then load
 async function openChannel(ch,backfill){
+  setView('updates'); // channels always open in the river
   $('#channel').value=ch;
-  if(backfill){ try{await api('/backfill',{method:'POST',body:JSON.stringify({project:ch})});}catch(e){} }
-  loadChannel();
+  CURCH=ch; CURDM=null;
+  const pn=projName(ch); $('#topic').textContent=pn?`${ch} · ${pn}`:`${ch}`;
+  if(backfill){
+    $('#stream').innerHTML=`<div class="empty loadmsg"><span class="spin"></span>Importing “${esc(ch)}” from JIRA…</div>`;
+    try{
+      const r=await api('/backfill',{method:'POST',body:JSON.stringify({project:ch})});
+      if(!r.ok){ $('#stream').innerHTML=`<div class="empty">Couldn’t import this board: ${esc(await r.text())}</div>`; return; }
+    }catch(e){ $('#stream').innerHTML='<div class="empty">Network error importing this board. Check your connection and retry.</div>'; return; }
+  }
+  await loadChannel();
 }
 
 function saveDraft(){try{localStorage.setItem('weavn-draft:'+CURCH,$('#body').value);}catch(e){}}
 function restoreDraft(){try{$('#body').value=localStorage.getItem('weavn-draft:'+$('#channel').value.trim())||'';}catch(e){$('#body').value='';}}
 
-async function loadChannel(){
-  const ch=$('#channel').value.trim();const sub=$('#subtree').checked;
-  CURCH=ch; CURDM=null; restoreDraft();
-  $('#typing').textContent='';
-  const pn=projName(ch);
-  $('#topic').textContent=pn?`${ch} · ${pn}`:`${ch}`;
-  const r=await api('/read?channel='+encodeURIComponent(ch)+(sub?'&subtree=true':''));
+let THREADS=[], LOADEDCH='', CURTHREAD=null;
+let FILTER={q:'',status:'',sort:'recent'};
+// Apply the board's filter + sort to THREADS. Default is Slack's river: oldest at
+// the top, most-recent activity at the bottom.
+function filteredSorted(){
+  let a=THREADS.slice();
+  const q=FILTER.q.trim().toLowerCase();
+  if(q) a=a.filter(t=>((t.author||'')+' '+(t.issue_key||'')+' '+(t.status||'')+' '+(t.lines||[]).join(' ')).toLowerCase().includes(q));
+  if(FILTER.status) a=a.filter(t=>(t.status||'')===FILTER.status);
+  if(FILTER.sort==='new') a.sort((x,y)=>y.ts-x.ts);
+  else a.sort((x,y)=>x.ts-y.ts); // 'recent' and 'old' both ascend; 'recent' means newest lands at the bottom
+  return a;
+}
+// Rebuild the board's status-filter options from whatever statuses are present.
+function syncStatusFilter(){
+  const sel=$('#fstatus'); const cur=sel.value;
+  const uniq=[...new Set(THREADS.map(t=>(t.status||'').trim()).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">All statuses</option>'+uniq.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  sel.value=uniq.includes(cur)?cur:''; FILTER.status=sel.value;
+}
+// Render the (filtered, sorted) river into #stream and wire per-message actions.
+function renderStream(){
   const stream=$('#stream');
-  if(!r.ok){stream.innerHTML='<div class="empty">'+esc(await r.text())+'</div>';return;}
-  const threads=await r.json();
-  if(!threads.length){stream.innerHTML='<div class="empty">No conversations yet — send one below.</div>';return;}
-  stream.innerHTML=threads.map(t=>{const k=esc(t.issue_key);return `
+  const list=filteredSorted();
+  $('#fcount').textContent=THREADS.length?(list.length===THREADS.length?`${THREADS.length} message${THREADS.length===1?'':'s'}`:`${list.length} of ${THREADS.length}`):'';
+  if(!list.length){stream.innerHTML=`<div class="empty">${THREADS.length?'No messages match your filter.':'No conversations yet — send one below.'}</div>`;return;}
+  stream.innerHTML=list.map(t=>{const k=esc(t.issue_key);return `
     <article class="convo${t.pinned?' pinned':''}${t.deleted?' deleted':''}">
       <div class="ch"><div class="av">${esc(initials(t.author))}</div><span class="who2">${esc(t.author)}</span><span class="time">${esc(fmtTime(t.ts))}</span><button class="statusbtn ${statusClass(t.status)}" data-issue="${k}" title="Change status">${esc(t.status||'—')}</button>
         <span class="acts">
-          <button class="iconbtn pinbtn${t.pinned?' on':''}" data-issue="${k}" data-on="${t.pinned?1:0}" title="${t.pinned?'Unpin':'Pin for the channel'}">📌</button>
-          <button class="savebtn${SAVED.has(t.issue_key)?' on':''}" data-issue="${k}" title="Save">${SAVED.has(t.issue_key)?'★':'☆'}</button>
-          <button class="iconbtn morebtn" data-issue="${k}" data-raw="${encodeURIComponent(t.lines.join('\n'))}" title="More actions">⋯</button>
+          <button class="iconbtn pinbtn${t.pinned?' on':''}" data-issue="${k}" data-on="${t.pinned?1:0}" title="${t.pinned?'Unpin':'Pin for the channel'}"><span class="mi${t.pinned?' filled':''}">push_pin</span></button>
+          <button class="savebtn${SAVED.has(t.issue_key)?' on':''}" data-issue="${k}" title="Save"><span class="mi${SAVED.has(t.issue_key)?' filled':''}">bookmark</span></button>
+          <button class="iconbtn morebtn" data-issue="${k}" data-raw="${encodeURIComponent(t.lines.join('\n'))}" title="More actions"><span class="mi">more_horiz</span></button>
           <span class="key"><a href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></span>
         </span></div>
       <div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div>
       ${(t.attachments&&t.attachments.length)?`<div class="atts">${t.attachments.map(a=>a.is_image?`<a class="att-img" href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.filename)}" loading="lazy"></a>`:`<a class="att-file" href="${esc(a.url)}" target="_blank" rel="noopener">📄 ${esc(a.filename)} <span class="asz">${fmtSize(a.size)}</span></a>`).join('')}</div>`:''}
       ${(t.actions&&t.actions.length)?`<div class="acts2">${t.actions.map(a=>`<button class="actbtn" data-issue="${k}" data-idx="${a.idx}">${esc(a.label)}</button>`).join('')}</div>`:''}
-      ${t.replies.length?`<div class="reps">${t.replies.map(x=>`<div class="rep"><span class="ra">${esc(x.author)}</span>${x.from_jira?' <span class="fj">FROM JIRA</span>':''}${x.broadcast?' <span class="bc">↗ CHANNEL</span>':''}: ${mdInline(esc(x.body))}</div>`).join('')}</div>`:''}
-      <div class="rx" data-issue="${k}">${(t.reactions||[]).map(x=>`<button class="rchip${x.mine?' mine':''}" data-code="${esc(x.shortcode)}" data-on="${x.mine?1:0}">${esc(x.shortcode)} ${x.count}</button>`).join('')}<button class="rxadd" title="Add reaction">＋</button></div>
-      <div class="replybar"><input placeholder="Reply…" data-issue="${k}"><label class="bcl" title="Also surface this reply at the channel level"><input type="checkbox" class="bcx"> ↗ channel</label><button data-issue="${k}">Reply</button></div>
+      <div class="rx" data-issue="${k}">${(t.reactions||[]).map(x=>`<button class="rchip${x.mine?' mine':''}" data-code="${esc(x.shortcode)}" data-on="${x.mine?1:0}">${esc(x.shortcode)} ${x.count}</button>`).join('')}<button class="rxadd" title="Add reaction"><span class="mi">add</span></button></div>
+      <button class="threadbtn" data-issue="${k}"><span class="mi">forum</span> ${t.replies.length?`${t.replies.length} repl${t.replies.length===1?'y':'ies'}`:'Reply in thread'}</button>
     </article>`;}).join('');
-  stream.querySelectorAll('.replybar button').forEach(btn=>btn.addEventListener('click',async()=>{
-    const bar=btn.closest('.replybar');const inp=bar.querySelector('input[data-issue]');
-    const body=inp.value.trim();if(!body)return;
-    const broadcast=bar.querySelector('.bcx').checked;
-    await api('/reply',{method:'POST',body:JSON.stringify({issue:btn.dataset.issue,body,broadcast})});
-    inp.value='';loadChannel();
-  }));
+  stream.querySelectorAll('.threadbtn').forEach(b=>b.addEventListener('click',()=>openThread(b.dataset.issue)));
   stream.querySelectorAll('.savebtn').forEach(b=>b.addEventListener('click',async()=>{
     const k=b.dataset.issue, on=SAVED.has(k);
     await api('/save',{method:'POST',body:JSON.stringify({issue:k,on:!on})});
-    if(on){SAVED.delete(k);b.classList.remove('on');b.textContent='☆';}
-    else{SAVED.add(k);b.classList.add('on');b.textContent='★';}
+    if(on){SAVED.delete(k);b.classList.remove('on');b.querySelector('.mi').classList.remove('filled');}
+    else{SAVED.add(k);b.classList.add('on');b.querySelector('.mi').classList.add('filled');}
   }));
   stream.querySelectorAll('.pinbtn').forEach(b=>b.addEventListener('click',async()=>{
     const on=b.dataset.on==='1';
@@ -463,7 +678,6 @@ async function loadChannel(){
     loadChannel();
   }));
   stream.querySelectorAll('.rxadd').forEach(b=>b.addEventListener('click',()=>openRxPal(b.closest('.rx'))));
-  markRead();
   stream.querySelectorAll('.morebtn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openActionsMenu(b);}));
   stream.querySelectorAll('.actbtn').forEach(b=>b.addEventListener('click',async()=>{
     b.disabled=true;
@@ -473,6 +687,128 @@ async function loadChannel(){
   }));
   unfurlThreads();
 }
+async function loadChannel(){
+  const ch=$('#channel').value.trim();const sub=$('#subtree').checked;
+  const stream=$('#stream');
+  // A refresh of the SAME channel (e.g. a live update) must not jump the view.
+  const refresh=(ch===LOADEDCH), sc=stream.scrollTop, atBottom=stream.scrollHeight-sc-stream.clientHeight<48;
+  CURCH=ch; CURDM=null; restoreDraft();
+  $('#typing').textContent='';
+  const pn=projName(ch);
+  $('#topic').textContent=pn?`${ch} · ${pn}`:`${ch}`;
+  $('#sidechans').querySelectorAll('.crow').forEach(r=>{const on=r.dataset.ch===ch;r.classList.toggle('active',on);if(on){r.classList.remove('unread');const b=r.querySelector('.ubadge');if(b)b.remove();}});
+  if(!refresh) stream.innerHTML='<div class="empty loadmsg"><span class="spin"></span>Loading…</div>';
+  const r=await api('/read?channel='+encodeURIComponent(ch)+(sub?'&subtree=true':''));
+  if(!r.ok){stream.innerHTML='<div class="empty">'+esc(await r.text())+'</div>';$('#filterbar').style.display='none';return;}
+  THREADS=await r.json();
+  $('#filterbar').style.display=THREADS.length?'flex':'none';
+  syncStatusFilter();
+  renderStream();
+  markRead();
+  LOADEDCH=ch;
+  // Fresh load → newest at the bottom, scrolled to it (like Slack). A live refresh
+  // keeps the reader's place, only following to the newest if already at the bottom.
+  if(refresh) stream.scrollTop = atBottom ? stream.scrollHeight : sc;
+  else stream.scrollTop = stream.scrollHeight;
+  if(CURTHREAD){ const t=THREADS.find(x=>x.issue_key===CURTHREAD); if(t) renderThread(t); }
+}
+// Filter / sort controls re-render the loaded river in place (no refetch).
+$('#fq').addEventListener('input',e=>{FILTER.q=e.target.value;renderStream();});
+$('#fstatus').addEventListener('change',e=>{FILTER.status=e.target.value;renderStream();});
+$('#fsort').addEventListener('change',e=>{FILTER.sort=e.target.value;renderStream();});
+
+// --- views: Updates (the board river) | Threads | Activity (both workspace-wide) ---
+let VIEW='updates';
+function setView(v){
+  VIEW=v;
+  $('#updatesview').classList.toggle('hidden',v!=='updates');
+  $('#threadsview').classList.toggle('hidden',v!=='threads');
+  $('#activityview').classList.toggle('hidden',v!=='activity');
+  document.querySelectorAll('.viewtab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  if(v!=='updates') closeThread();
+  if(v==='threads') loadThreadsFeed();
+  else if(v==='activity') loadActivityFeed();
+}
+document.querySelectorAll('.viewtab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.v)));
+// Jump from a workspace feed into a board's river, optionally opening a thread.
+async function jumpTo(channel,issue){
+  if(!channel) return;
+  setView('updates');
+  await openChannel(channel, channel.indexOf(' / ')<0);
+  if(issue) openThread(issue);
+}
+function fmtKind(k){ return k==='mention'?'mentioned you':(k==='keyword'?'matched a keyword':(k==='reminder'?'reminder':'replied')); }
+async function loadThreadsFeed(){
+  const el=$('#threadsfeed'); el.innerHTML='<div class="feedempty"><span class="spin"></span>Loading threads…</div>';
+  let items=[]; try{const r=await api('/threads'); if(r.ok)items=await r.json();}catch(e){}
+  if(!items.length){el.innerHTML='<div class="feedempty">No threaded conversations yet. Reply to a message to start one.</div>';return;}
+  el.innerHTML=items.map(t=>`<div class="fitem" data-ch="${esc(t.channel)}" data-issue="${esc(t.issue_key)}">
+      <div class="fav">${esc(initials(t.root_author))}</div>
+      <div class="fmain">
+        <div class="ftop"><span class="fch">#${esc(t.channel)}</span><span class="fa">${esc(t.root_author)}</span><span class="ftime">${esc(fmtTime(t.ts))}</span></div>
+        <div class="fbody">${esc(t.snippet)}</div>
+        <div class="flast"><b>${esc(t.last_author)}:</b> ${esc(t.last_snippet)}</div>
+        <div class="frep"><span class="mi">forum</span> ${t.replies} repl${t.replies===1?'y':'ies'}</div>
+      </div>
+    </div>`).join('');
+  el.querySelectorAll('.fitem').forEach(it=>it.addEventListener('click',()=>jumpTo(it.dataset.ch,it.dataset.issue)));
+}
+async function loadActivityFeed(){
+  const el=$('#activityfeed'); el.innerHTML='<div class="feedempty"><span class="spin"></span>Loading activity…</div>';
+  await loadNotifications();
+  const items=NOTIFS.items||[];
+  if(!items.length){el.innerHTML='<div class="feedempty">Nothing needs your attention right now.</div>';return;}
+  el.innerHTML=items.map(n=>`<div class="fitem${n.read?'':' unread'}" data-id="${n.id}" data-ch="${esc(n.channel)}" data-issue="${esc(n.issue_key||'')}">
+      <div class="fav">${esc(initials(n.actor))}</div>
+      <div class="fmain">
+        <div class="ftop"><span class="fa">${esc(n.actor)}</span><span class="fkind">${esc(fmtKind(n.kind))}</span>${n.channel?`<span class="fch">#${esc(n.channel)}</span>`:''}<span class="ftime">${esc(fmtTime(n.ts))}</span></div>
+        <div class="fbody">${esc(n.snippet)}</div>
+      </div>
+    </div>`).join('');
+  el.querySelectorAll('.fitem').forEach(it=>it.addEventListener('click',async()=>{
+    if(it.dataset.id) await api('/notifications/read',{method:'POST',body:JSON.stringify({id:+it.dataset.id})});
+    loadNotifications();
+    jumpTo(it.dataset.ch, it.dataset.issue||null);
+  }));
+}
+
+// --- thread pane: Slack-style thread expansion in the right rail ---
+function openThread(key){
+  const t=THREADS.find(x=>x.issue_key===key); if(!t) return;
+  CURTHREAD=key;
+  $('.main').classList.add('tp'); $('#threadpane').classList.remove('hidden');
+  renderThread(t); $('#threadinput').focus();
+}
+function closeThread(){ CURTHREAD=null; $('#threadpane').classList.add('hidden'); $('.main').classList.remove('tp'); }
+function renderThread(t){
+  const k=esc(t.issue_key);
+  const root=`<div class="troot"><div class="ch"><div class="av">${esc(initials(t.author))}</div><span class="who2">${esc(t.author)}</span><span class="time">${esc(fmtTime(t.ts))}</span><span class="key"><a href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></span></div><div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div></div>`;
+  const reps=(t.replies||[]).length
+    ? t.replies.map(x=>`<div class="rep"><span class="ra">${esc(x.author)}</span>${x.from_jira?' <span class="fj">FROM JIRA</span>':''}${x.broadcast?' <span class="bc">↗ CHANNEL</span>':''}: ${mdInline(esc(x.body))}</div>`).join('')
+    : '<div class="pmuted">No replies yet — start the thread below.</div>';
+  const body=$('#threadbody'); const sc=body.scrollTop, atBottom=body.scrollHeight-sc-body.clientHeight<48;
+  body.innerHTML=root+reps;
+  body.scrollTop = atBottom ? body.scrollHeight : sc;
+}
+$('#threadclose').addEventListener('click',closeThread);
+$('#threadform').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const body=$('#threadinput').value.trim(); if(!body||!CURTHREAD) return;
+  const broadcast=$('#threadbc').checked;
+  const btn=e.target.querySelector('button[type=submit]'); btn.disabled=true;
+  const r=await api('/reply',{method:'POST',body:JSON.stringify({issue:CURTHREAD,body,broadcast})});
+  btn.disabled=false;
+  if(!r.ok){alert('Reply failed: '+await r.text());return;}
+  $('#threadinput').value=''; $('#threadbc').checked=false;
+  loadChannel(); // refreshes the stream + re-renders this thread (CURTHREAD)
+});
+// "Only what's changed" vs "everything" (Slack-like activity view)
+$('#activitytoggle').addEventListener('click',()=>{
+  ACTIVITY=!ACTIVITY;
+  const b=$('#activitytoggle'); b.textContent=ACTIVITY?'Unread':'All'; b.classList.toggle('on',ACTIVITY);
+  renderSidebar();
+});
+
 // auto-preview the first link in each conversation (cached per URL)
 let UNFURL={};
 function unfurlThreads(){
@@ -603,7 +939,7 @@ async function loadState(){
 }
 function renderState(){
   const label=((STATE.emoji||'')+' '+(STATE.text||'')).trim();
-  $('#statuschip').textContent=label||'＋ Set status';
+  {const sc=$('#statuschip'); if(label){sc.textContent=label;} else {sc.innerHTML='<span class="mi">add</span> Set status';}}
   $('#dndbtn').classList.toggle('on',!!STATE.dnd);
   $('#dash').href=SITE?SITE+'/jira/dashboards':'#';
 }
@@ -619,17 +955,21 @@ $('#statuschip').addEventListener('click',async()=>{
 });
 $('#dndbtn').addEventListener('click',async()=>{ STATE.dnd=!STATE.dnd; await saveState(); });
 
-// channel browser / saved view share the #chanlist panel
-$('#chansbtn').addEventListener('click',async()=>{
-  const cl=$('#chanlist');
-  if(cl.style.display==='flex'&&cl.dataset.mode==='channels'){cl.style.display='none';cl.dataset.mode='';return;}
-  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='channels';
-  cl.innerHTML='<div class="pmuted">Loading channels…</div>';
-  const r=await api('/channels');
-  if(!r.ok){cl.innerHTML='<div class="pmuted">'+esc(await r.text())+'</div>';return;}
-  const chs=await r.json();
-  if(!chs.length){cl.innerHTML='<div class="pmuted">No channels yet — open a project or send a message.</div>';return;}
-  // group by the first path segment into hierarchical sections
+// Persistent left rail = every JIRA board you can access (imported from /discover),
+// merged with channels that already have activity (/channels). A channel IS a board.
+// ACTIVITY = the "only what's changed" view (unread only) vs "everything".
+let ACTIVITY=false;
+$('#rescanbtn').addEventListener('click',rescanChannels);
+async function rescanChannels(){ PROJECTS=[]; await ensureProjects(); renderSidebar(); }
+async function renderSidebar(){
+  const cl=$('#sidechans');
+  await ensureProjects();
+  let chs=[]; try{const r=await api('/channels'); if(r.ok)chs=await r.json();}catch(e){}
+  const top=new Set(chs.map(c=>c.channel.split(' / ')[0]));
+  PROJECTS.forEach(p=>{ if(!top.has(p.key)) chs.push({channel:p.key,count:0,unread:0,starred:false,archived:false,private:false,name:p.name}); });
+  chs.forEach(c=>{ if(!c.name){const n=projName(c.channel.split(' / ')[0]); if(n)c.name=n;} });
+  if(ACTIVITY) chs=chs.filter(c=>c.unread>0 || c.channel===CURCH); // only what's changed
+  if(!chs.length){cl.innerHTML=`<div class="pmuted">${ACTIVITY?'Nothing new — you’re all caught up.':'No boards visible to your account.'}</div>`;return;}
   const groups={};
   chs.forEach(c=>{const seg=c.channel.split(' / ')[0];(groups[seg]=groups[seg]||[]).push(c);});
   const names=Object.keys(groups).sort((a,b)=>{
@@ -637,9 +977,9 @@ $('#chansbtn').addEventListener('click',async()=>{
     return (sb-sa)||a.localeCompare(b);
   });
   const row=(c,nested)=>{const tail=c.channel.slice(c.channel.split(' / ')[0].length).replace(/^ \/ /,'');
-    return `<div class="crow${c.archived?' arch':''}${nested?' nested':''}${c.unread>0?' unread':''}" data-ch="${esc(c.channel)}">
-      <span class="st${c.starred?' on':''}" data-ch="${esc(c.channel)}" data-on="${c.starred?1:0}" title="Star channel">${c.starred?'★':'☆'}</span>
-      <span class="cn">${c.private?'🔒 ':''}${esc(nested?(tail||c.channel):c.channel)}</span>${c.unread>0?`<span class="ubadge">${c.unread}</span>`:''}<span class="cc">${c.count}</span>
+    return `<div class="crow${c.archived?' arch':''}${nested?' nested':''}${c.unread>0?' unread':''}${c.channel===CURCH?' active':''}" data-ch="${esc(c.channel)}">
+      <span class="st${c.starred?' on':''}" data-ch="${esc(c.channel)}" data-on="${c.starred?1:0}" title="Star channel"><span class="mi${c.starred?' filled':''}">star</span></span>
+      <span class="cn">${c.private?'<span class="mi" style="font-size:13px;vertical-align:-2px">lock</span> ':''}${esc(nested?(tail||c.channel):c.channel)}${c.name&&!nested?` <span class="cboard">${esc(c.name)}</span>`:''}</span>${c.unread>0?`<span class="ubadge">${c.unread}</span>`:''}<span class="cc">${c.count||''}</span>
       <span class="ar" data-ch="${esc(c.channel)}" data-on="${c.archived?1:0}" title="Archive">${c.archived?'unarchive':'archive'}</span>
     </div>`;};
   cl.innerHTML=names.map(seg=>{
@@ -649,19 +989,19 @@ $('#chansbtn').addEventListener('click',async()=>{
   }).join('');
   cl.querySelectorAll('.crow').forEach(row=>row.addEventListener('click',e=>{
     if(e.target.classList.contains('st')||e.target.classList.contains('ar'))return;
-    cl.style.display='none';cl.dataset.mode='';openChannel(row.dataset.ch,false);
+    const ch=row.dataset.ch; openChannel(ch,ch.indexOf(' / ')<0);
   }));
   cl.querySelectorAll('.st').forEach(st=>st.addEventListener('click',async e=>{
     e.stopPropagation();const on=st.dataset.on==='1';
     await api('/star',{method:'POST',body:JSON.stringify({channel:st.dataset.ch,on:!on})});
-    st.dataset.on=on?'0':'1';st.classList.toggle('on',!on);st.textContent=on?'☆':'★';
+    st.dataset.on=on?'0':'1';st.classList.toggle('on',!on);st.querySelector('.mi').classList.toggle('filled',!on);
   }));
   cl.querySelectorAll('.ar').forEach(ar=>ar.addEventListener('click',async e=>{
     e.stopPropagation();const on=ar.dataset.on==='1';
     await api('/archive',{method:'POST',body:JSON.stringify({channel:ar.dataset.ch,on:!on})});
     ar.dataset.on=on?'0':'1';ar.textContent=on?'archive':'unarchive';ar.closest('.crow').classList.toggle('arch',!on);
   }));
-});
+}
 $('#savedbtn').addEventListener('click',async()=>{
   const cl=$('#chanlist');
   if(cl.style.display==='flex'&&cl.dataset.mode==='saved'){cl.style.display='none';cl.dataset.mode='';return;}
@@ -669,10 +1009,10 @@ $('#savedbtn').addEventListener('click',async()=>{
   $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='saved';
   const items=[...SAVED].sort();
   cl.innerHTML=items.length?items.map(k=>`<div class="crow">
-      <span class="st on">★</span>
+      <span class="st on"><span class="mi filled">bookmark</span></span>
       <span class="cn"><a href="${esc(permalink(k))}" target="_blank" rel="noopener">${esc(k)}</a></span>
       <span class="ar" data-k="${esc(k)}" title="Remove from saved">remove</span>
-    </div>`).join(''):'<div class="pmuted">No saved items yet — click ☆ on a conversation to save it.</div>';
+    </div>`).join(''):'<div class="pmuted">No saved items yet — click the bookmark icon on a conversation to save it.</div>';
   cl.querySelectorAll('.ar[data-k]').forEach(b=>b.addEventListener('click',async()=>{
     await api('/save',{method:'POST',body:JSON.stringify({issue:b.dataset.k,on:false})});
     SAVED.delete(b.dataset.k);b.closest('.crow').remove();
@@ -688,10 +1028,10 @@ function connectWS(){
   sock.onopen=()=>{WS_RETRY=0;};
   sock.onmessage=ev=>{
     let m; try{m=JSON.parse(ev.data);}catch(e){return;}
-    if(m.type==='message'){ if(m.channel===CURCH) scheduleReload(); }
+    if(m.type==='message'){ if(m.channel===CURCH&&VIEW==='updates') scheduleReload(); else if(VIEW==='threads') loadThreadsFeed(); }
     else if(m.type==='presence'){ renderPresence(m.users||[]); }
     else if(m.type==='availability'){ loadAvailability(); }
-    else if(m.type==='notify'){ loadNotifications(); }
+    else if(m.type==='notify'){ loadNotifications(); if(VIEW==='activity') loadActivityFeed(); }
     else if(m.type==='dm'){ reloadDM(); }
     else if(m.type==='typing'){ if(m.channel===CURCH && m.who!==MENAME) showTyping(m.who); }
   };
@@ -861,25 +1201,7 @@ const DEFAULT_SEED=[
   {channel:'product / roadmap', body:'🗺️ *product / roadmap* — what we are building and why.'},
   {channel:'proj / onboarding', body:'📦 *proj / onboarding* — an example initiative channel. Archive it when the project wraps.'},
 ];
-async function firstRun(){
-  let chs;
-  try{ const r=await api('/channels'); if(!r.ok)return; chs=await r.json(); }catch(e){ return; }
-  if(chs.length) return; // workspace already has channels — don't nag
-  const cl=$('#chanlist');
-  $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='firstrun';
-  cl.innerHTML='<div class="starthint">Welcome to <b>weaveN</b> — your workspace is empty. Create a starter set of channels to get going (each becomes a JIRA board). Uncheck any you don’t want.</div>'
-    +DEFAULT_SEED.map((d,i)=>`<label class="crow" style="cursor:pointer"><input type="checkbox" class="seedck" data-i="${i}" checked> <span class="cn">${esc(d.channel)}</span></label>`).join('')
-    +'<div style="padding:8px"><button id="seedgo" style="border:0;background:var(--accent);color:#fff;border-radius:7px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer">Create selected channels</button></div>';
-  $('#seedgo').addEventListener('click',async()=>{
-    const picks=[...cl.querySelectorAll('.seedck:checked')].map(c=>DEFAULT_SEED[+c.dataset.i]);
-    if(!picks.length){cl.style.display='none';cl.dataset.mode='';return;}
-    const go=$('#seedgo'); go.disabled=true; go.textContent='Creating…';
-    const rr=await api('/seed',{method:'POST',body:JSON.stringify({channels:picks})});
-    cl.style.display='none'; cl.dataset.mode='';
-    if(rr.ok){ const res=await rr.json(); if(res.created&&res.created.length) openChannel(res.created[0],false); }
-    else alert('Could not create channels: '+await rr.text());
-  });
-}
+async function firstRun(){ /* superseded by the persistent sidebar (renderSidebar) */ }
 
 // channel privacy + membership settings
 $('#chanacl').addEventListener('click',openAclPanel);
@@ -991,9 +1313,9 @@ async function openDmList(){
   $('#projlist').style.display='none'; cl.style.display='flex'; cl.dataset.mode='dm';
   cl.innerHTML='<div class="pmuted" style="padding:6px 8px">Loading…</div>';
   const r=await api('/dm/list'); const convos=r.ok?await r.json():[];
-  cl.innerHTML='<div style="padding:7px 8px"><button id="newdm" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer">＋ New DM</button></div>'
+  cl.innerHTML='<div style="padding:7px 8px"><button id="newdm" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer"><span class="mi">add</span> New DM</button></div>'
     +'<div class="starthint">End-to-encrypted in the vault — never stored in JIRA.</div>'
-    +(convos.length?convos.map(c=>`<div class="crow" data-id="${c.id}"><span class="cn">✉ ${esc(c.title)}</span></div>`).join(''):'<div class="pmuted" style="padding:4px 8px">No direct messages yet.</div>');
+    +(convos.length?convos.map(c=>`<div class="crow" data-id="${c.id}"><span class="cn"><span class="mi" style="font-size:14px;vertical-align:-3px">mail</span> ${esc(c.title)}</span></div>`).join(''):'<div class="pmuted" style="padding:4px 8px">No direct messages yet.</div>');
   $('#newdm').addEventListener('click',newDm);
   cl.querySelectorAll('.crow[data-id]').forEach(row=>row.addEventListener('click',()=>{ cl.style.display='none'; cl.dataset.mode=''; openDM(+row.dataset.id); }));
 }
@@ -1025,7 +1347,7 @@ function renderDmLines(lines){
 }
 async function reloadDM(){ if(!CURDM||CURDM.id==null)return; const r=await api('/dm/read?convo='+CURDM.id); if(r.ok) renderDmLines(await r.json()); }
 
-(async()=>{const s=await me();if(s)showApp(s);else showLogin();})();
+(async()=>{await loadAuthConfig();configureLogin();const s=await me();if(s)showApp(s);else showLogin();})();
 </script>
 </body>
 </html>

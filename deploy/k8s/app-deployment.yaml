@@ -7,9 +7,14 @@ metadata:
   namespace: weavn
 data:
   WEAVN_BIND: "0.0.0.0:8080"
-  # Storage project key for NEW native conversations (must exist in the JIRA the
-  # user logs into). Set this to a real project key before relying on sends.
-  WEAVN_PROJECT: "WEAVN"
+  # Multi-tenancy (docs/MULTITENANCY.md): one JIRA site = one workspace at
+  # <subdomain>.weavn.io. BASE_DOMAIN turns on Host-based tenant routing; MULTITENANT
+  # accepts any *.atlassian.net at login (required for self-serve provisioning).
+  WEAVN_BASE_DOMAIN: "weavn.io"
+  WEAVN_JIRA_MULTITENANT: "1"
+  # A channel IS a JIRA board: new conversations are created in the project the CHANNEL
+  # names (any project the poster can access), and a post that names no accessible
+  # project is refused (409) — there is deliberately no default-project env.
   # --- Optional Okta/OIDC SSO (leave unset to run JIRA-token login only) ---
   # WEAVN_OIDC_ISSUER: "https://<org>.okta.com/oauth2/default"
   # WEAVN_OIDC_CLIENT_ID: "0oa..."

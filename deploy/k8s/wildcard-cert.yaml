@@ -1,0 +1,21 @@
+# The wildcard TLS cert that every tenant host (<subdomain>.weavn.io, plus the
+# app.weavn.io apex redirector) is served with. Issued by the DNS-01 ClusterIssuer
+# into the Secret `weavn-wildcard-tls`, which `app-ingress.yaml` references.
+#
+# Scope: *.weavn.io only. A wildcard does NOT cover the bare apex weavn.io — that
+# stays with the marketing site's own cert (weavn-web-tls). The exact hosts
+# weavn.io / www.weavn.io keep winning over this wildcard in nginx (exact > wildcard),
+# so the marketing site is unaffected.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: weavn-wildcard
+  namespace: weavn
+spec:
+  secretName: weavn-wildcard-tls
+  issuerRef:
+    name: letsencrypt-dns
+    kind: ClusterIssuer
+  commonName: "*.weavn.io"
+  dnsNames:
+    - "*.weavn.io"

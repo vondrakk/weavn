@@ -3,4 +3,5 @@
   <url><loc>https://weavn.io/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
   <url><loc>https://weavn.io/privacy.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
   <url><loc>https://weavn.io/terms.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://weavn.io/eula.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
 </urlset>

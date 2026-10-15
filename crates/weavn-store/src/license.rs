@@ -76,6 +76,117 @@ pub async fn seat_claim(
     })
 }
 
+/// Outcome of an admission-controlled sign-in (the hosted free-tier hard cap).
+#[derive(Debug, Clone)]
+pub enum Admission {
+    /// Admitted — the seat is claimed. Carries post-claim usage for warning banners.
+    Admitted(SeatClaim),
+    /// Refused — a NEW user beyond the free cap on an unlicensed namespace. No seat
+    /// was created; the existing users are unaffected.
+    Full { active_seats: i64, entitled: i64 },
+}
+
+/// Like [`seat_claim`], but enforces the free-tier cap for the hosted SaaS: on an
+/// **unlicensed** namespace, a *new* seat beyond entitlement is refused and NOT
+/// created. Two cases always admit: a user who already holds an active seat (a plain
+/// re-login), and any sign-in on a **licensed** namespace (paying customers are
+/// metered, never denied — their overage is reported for a warning banner).
+///
+/// Admission and the claim run in one transaction, serialized per namespace by a
+/// Postgres advisory lock, so two simultaneous "11th user" sign-ins can't both slip
+/// past the cap.
+pub async fn seat_claim_enforced(
+    pool: &Pool,
+    ws: &str,
+    user_id: &str,
+    display: &str,
+    email: Option<&str>,
+) -> sqlx::Result<Admission> {
+    // Free allowance (config override) read outside the tx — not racy.
+    let free = free_seats(pool, ws).await?;
+
+    let mut tx = pool.begin().await?;
+    // Serialize admission for this namespace (hashtext -> int for the advisory key).
+    sqlx::query("select pg_advisory_xact_lock(hashtext($1))")
+        .bind(ws)
+        .execute(&mut *tx)
+        .await?;
+
+    let prior: Option<bool> =
+        sqlx::query_scalar::<_, bool>("select active from seat where workspace = $1 and user_id = $2")
+            .bind(ws)
+            .bind(user_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let newly = !matches!(prior, Some(true));
+
+    let licensed: bool = sqlx::query_scalar::<_, bool>(
+        "select exists(select 1 from license where workspace = $1 and status = 'active' \
+         and starts_at <= current_date and (ends_at is null or ends_at >= current_date))",
+    )
+    .bind(ws)
+    .fetch_one(&mut *tx)
+    .await?;
+    let entitled = if licensed {
+        sqlx::query_scalar::<_, i64>("select seats::bigint from license where workspace = $1")
+            .bind(ws)
+            .fetch_optional(&mut *tx)
+            .await?
+            .unwrap_or(free)
+    } else {
+        free
+    };
+
+    let active_before: i64 =
+        sqlx::query_scalar::<_, i64>("select count(*) from seat where workspace = $1 and active")
+            .bind(ws)
+            .fetch_one(&mut *tx)
+            .await?;
+
+    // Block only a NEW seat on an UNLICENSED namespace that is already at the cap.
+    if newly && !licensed && active_before >= entitled {
+        tx.rollback().await?;
+        return Ok(Admission::Full { active_seats: active_before, entitled });
+    }
+
+    sqlx::query(
+        "insert into seat (workspace, user_id, display, email, active, first_seen, last_seen, released_at) \
+         values ($1, $2, $3, $4, true, now(), now(), null) \
+         on conflict (workspace, user_id) do update set \
+           display = excluded.display, email = excluded.email, \
+           active = true, last_seen = now(), released_at = null",
+    )
+    .bind(ws)
+    .bind(user_id)
+    .bind(display)
+    .bind(email)
+    .execute(&mut *tx)
+    .await?;
+    if newly {
+        let ev = if prior.is_none() { "claimed" } else { "reactivated" };
+        sqlx::query("insert into seat_event (workspace, user_id, event) values ($1, $2, $3)")
+            .bind(ws)
+            .bind(user_id)
+            .bind(ev)
+            .execute(&mut *tx)
+            .await?;
+    }
+    let active_after: i64 =
+        sqlx::query_scalar::<_, i64>("select count(*) from seat where workspace = $1 and active")
+            .bind(ws)
+            .fetch_one(&mut *tx)
+            .await?;
+    tx.commit().await?;
+
+    Ok(Admission::Admitted(SeatClaim {
+        newly_claimed: newly,
+        active_seats: active_after,
+        entitled,
+        over: (active_after - entitled).max(0),
+        licensed,
+    }))
+}
+
 /// Distinct active users in the namespace.
 pub async fn seat_active_count(pool: &Pool, ws: &str) -> sqlx::Result<i64> {
     sqlx::query_scalar::<_, i64>("select count(*) from seat where workspace = $1 and active")
