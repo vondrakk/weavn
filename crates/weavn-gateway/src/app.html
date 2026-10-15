@@ -906,6 +906,7 @@ function renderAcl(ch, acl){
   }
   html+='<div class="csec">Incoming webhooks</div><div id="whsec" style="padding:0 2px"></div><div style="padding:6px 8px"><button id="whnew" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer">+ Create webhook</button></div>';
   html+='<div class="csec">Bots (workspace)</div><div id="botsec" style="padding:0 2px"></div><div style="padding:6px 8px"><button id="botnew" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer">+ Create bot</button></div>';
+  html+='<div class="csec">Workflows (automation)</div><div id="wfsec" style="padding:0 2px"></div><div style="padding:6px 8px"><button id="wfnew" style="border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer">+ New rule</button></div>';
   cl.innerHTML=html;
   $('#privck').addEventListener('change',async e=>{
     const rr=await api('/channel/private',{method:'POST',body:JSON.stringify({channel:ch,private:e.target.checked})});
@@ -941,7 +942,28 @@ function renderAcl(ch, acl){
     if(!rr.ok){alert('Failed: '+await rr.text());return;}
     loadBots();
   });
-  loadWebhooks(ch); loadBots();
+  $('#wfnew').addEventListener('click',async()=>{
+    const kind=prompt('Action — react | reply | transition | addlabel | pin','react'); if(kind===null)return;
+    const k=kind.trim().toLowerCase(); let arg='';
+    if(k==='react') arg=prompt('Emoji to add:','👀')||'';
+    else if(k==='reply') arg=prompt('Reply text:','Thanks — looking now.')||'';
+    else if(k==='transition') arg=prompt('Target status:','In Progress')||'';
+    else if(k==='addlabel') arg=prompt('Label to add:','triage')||'';
+    const contains=prompt('When a new message contains (blank = any):','')||'';
+    const channel=prompt('In channel (blank = any):', ch)||'';
+    const rr=await api('/workflows',{method:'POST',body:JSON.stringify({kind:k,arg,contains,channel})});
+    if(!rr.ok){alert('Failed: '+await rr.text());return;}
+    loadWorkflows();
+  });
+  loadWebhooks(ch); loadBots(); loadWorkflows();
+}
+async function loadWorkflows(){
+  const el=$('#wfsec'); if(!el)return;
+  const r=await api('/workflows'); if(!r.ok){el.innerHTML='';return;}
+  const wfs=await r.json();
+  el.innerHTML=wfs.length?wfs.map(w=>`<div class="crow"><span class="cn">${w.enabled?'':'⏸ '}${esc(w.channel)} · if "${esc(w.contains||'any')}" → ${esc(w.kind)}${w.arg?(' '+esc(w.arg)):''}</span><span class="ar" data-tog="${w.id}" data-en="${w.enabled?1:0}">${w.enabled?'disable':'enable'}</span><span class="ar" data-delwf="${w.id}">delete</span></div>`).join(''):'<div class="pmuted" style="padding:4px 8px;font-size:11px">No rules. e.g. in #eng/incidents, if "sev1" → transition to In Progress.</div>';
+  el.querySelectorAll('.ar[data-tog]').forEach(b=>b.addEventListener('click',async()=>{await api('/workflows/toggle',{method:'POST',body:JSON.stringify({id:+b.dataset.tog,enabled:b.dataset.en!=='1'})});loadWorkflows();}));
+  el.querySelectorAll('.ar[data-delwf]').forEach(b=>b.addEventListener('click',async()=>{await api('/workflows/delete',{method:'POST',body:JSON.stringify({id:+b.dataset.delwf})});loadWorkflows();}));
 }
 async function loadBots(){
   const el=$('#botsec'); if(!el)return;

@@ -108,7 +108,7 @@ chat clone:
 |---|---|---|---|
 | **Direct messages / group DMs** | **Encrypted vault** (age, per-participant + org escrow) — Postgres-only, never JIRA | 4 | ✅ |
 | Block Kit / interactive messages (buttons, modals) | Action buttons → allowlisted gateway actions (transition/reply/ack) | 4 | ✅ (buttons) |
-| Workflow Builder (no-code automations) | A workflow engine over JIRA transitions/fields | 4 | ○ |
+| Workflow Builder (no-code automations) | Rule engine: match on new message → allowlisted action | 4 | ✅ |
 | Bots / bot users | Named token identity; posts via the service account | 4 | ✅ |
 | Custom app platform (OAuth, scopes, app directory) | A third-party developer platform | 4 | ○ |
 | Canvas (collaborative docs) | A real-time collaborative doc editor | 4 | ○ |

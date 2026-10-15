@@ -813,3 +813,40 @@ pub async fn action_get(pool: &PgPool, ws: &str, issue: &str, idx: i32) -> sqlx:
     sqlx::query_as::<_, (String, String)>("select kind, arg from message_action where workspace=$1 and issue_key=$2 and idx=$3")
         .bind(ws).bind(issue).bind(idx).fetch_optional(pool).await
 }
+
+// --- Tier 4: Workflow Builder -----------------------------------------------
+
+#[allow(clippy::too_many_arguments)]
+pub async fn workflow_create(pool: &PgPool, ws: &str, channel: &str, contains: &str, kind: &str, arg: &str, by: &str) -> sqlx::Result<i64> {
+    sqlx::query_scalar::<_, i64>(
+        "insert into workflow (workspace, channel, contains, action_kind, action_arg, created_by) \
+         values ($1,$2,$3,$4,$5,$6) returning id",
+    )
+    .bind(ws).bind(channel).bind(contains).bind(kind).bind(arg).bind(by).fetch_one(pool).await
+}
+
+/// All rules in a workspace: (id, channel, contains, kind, arg, enabled, created_by).
+pub async fn workflows_list(pool: &PgPool, ws: &str) -> sqlx::Result<Vec<(i64, String, String, String, String, bool, String)>> {
+    sqlx::query_as::<_, (i64, String, String, String, String, bool, String)>(
+        "select id, channel, contains, action_kind, action_arg, enabled, created_by from workflow where workspace=$1 order by id",
+    )
+    .bind(ws).fetch_all(pool).await
+}
+
+/// Enabled rules for matching on a new message: (id, channel, contains, kind, arg).
+pub async fn workflows_enabled(pool: &PgPool, ws: &str) -> sqlx::Result<Vec<(i64, String, String, String, String)>> {
+    sqlx::query_as::<_, (i64, String, String, String, String)>(
+        "select id, channel, contains, action_kind, action_arg from workflow where workspace=$1 and enabled=true",
+    )
+    .bind(ws).fetch_all(pool).await
+}
+
+pub async fn workflow_delete(pool: &PgPool, ws: &str, id: i64) -> sqlx::Result<()> {
+    sqlx::query("delete from workflow where workspace=$1 and id=$2").bind(ws).bind(id).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn workflow_toggle(pool: &PgPool, ws: &str, id: i64, enabled: bool) -> sqlx::Result<()> {
+    sqlx::query("update workflow set enabled=$3 where workspace=$1 and id=$2").bind(ws).bind(id).bind(enabled).execute(pool).await?;
+    Ok(())
+}

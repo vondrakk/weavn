@@ -56,6 +56,77 @@ async fn notify_for_message(s: &AppState, ws: &str, actor: &str, actor_acc: &str
     s.hub.publish(ws, serde_json::json!({ "type": "notify" }).to_string());
 }
 
+/// Workflow Builder: run enabled rules against a new top-level message. Actions
+/// are an allowlist executed server-side (JIRA writes via the service account).
+/// Only fires on new conversations (not replies/coalesce), so it can't loop.
+async fn run_workflows(s: &AppState, ws: &str, channel: &str, issue: &str, body: &str) {
+    let rules = match weavn_store::workflows_enabled(&s.pool, ws).await {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    let bl = body.to_lowercase();
+    let mut ran = false;
+    for (_id, rchan, contains, kind, arg) in rules {
+        if rchan != "*" && rchan != channel {
+            continue;
+        }
+        if !contains.is_empty() && !bl.contains(&contains.to_lowercase()) {
+            continue;
+        }
+        match kind.as_str() {
+            "react" => {
+                let _ = weavn_store::react_set(&s.pool, ws, issue, &arg, "__workflow__", true).await;
+                ran = true;
+            }
+            "pin" => {
+                let _ = weavn_store::pin_set(&s.pool, ws, channel, issue, "__workflow__", true).await;
+                ran = true;
+            }
+            "reply" | "transition" | "addlabel" => {
+                let (issue2, arg2, kind2) = (issue.to_string(), arg.clone(), kind.clone());
+                let res = tokio::task::spawn_blocking(move || -> Result<Option<String>, String> {
+                    let mut be = RealBackend::from_env()?;
+                    match kind2.as_str() {
+                        "reply" => {
+                            let adf = weavn::format::mrkdwn_to_adf(&arg2);
+                            be.add_comment(&issue2, "Workflow", &arg2, &adf)?;
+                            Ok(None)
+                        }
+                        "transition" => {
+                            be.transition_to(&issue2, &arg2)?;
+                            Ok(Some(be.issue_status(&issue2).unwrap_or_default()))
+                        }
+                        "addlabel" => {
+                            be.set_label(&issue2, &arg2, true)?;
+                            Ok(None)
+                        }
+                        _ => Ok(None),
+                    }
+                })
+                .await;
+                if let Ok(Ok(opt)) = res {
+                    match kind.as_str() {
+                        "reply" => {
+                            let _ = weavn_store::message_insert(&s.pool, ws, channel, issue, Some(issue), "Workflow", &arg, false, false).await;
+                        }
+                        "transition" => {
+                            if let Some(st) = opt {
+                                let _ = weavn_store::status_set(&s.pool, ws, issue, &st).await;
+                            }
+                        }
+                        _ => {}
+                    }
+                    ran = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    if ran {
+        s.hub.publish(ws, event_message(channel));
+    }
+}
+
 const SCHED_MAX_TRIES: i32 = 40; // ~10 min of retries while the author is offline
 
 /// Background scheduler: every 15s, fire due reminders and send-later messages.
@@ -196,6 +267,9 @@ async fn main() {
         .route("/bots/delete", post(bots_delete))
         .route("/bot/post", post(bot_post))
         .route("/action", post(action))
+        .route("/workflows", get(workflows_get).post(workflows_create))
+        .route("/workflows/delete", post(workflows_delete))
+        .route("/workflows/toggle", post(workflows_toggle))
         .route("/react", post(react))
         .route("/markread", post(mark_read))
         .route("/search", get(search))
@@ -592,6 +666,7 @@ async fn send(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<SendReq
     weavn_store::message_insert(&s.pool, &ws, &r.channel, &key, None, &author, &body, false, false).await.map_err(db_err)?;
     weavn_store::status_set(&s.pool, &ws, &key, &status).await.map_err(db_err)?;
     notify_for_message(&s, &ws, &author, &me_acc, &r.channel, &key, &body, &r.mentions).await;
+    run_workflows(&s, &ws, &r.channel, &key, &body).await;
     s.hub.publish(&ws, event_message(&r.channel));
     Ok(Json(OutcomeResp { kind: "new_issue", issue: key, comment: None }))
 }
@@ -773,7 +848,9 @@ async fn read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ReadQ
         match row.parent_issue {
             None => {
                 t.deleted = row.deleted;
-                t.status = row.status;
+                if !row.status.is_empty() {
+                    t.status = row.status; // don't let a coalesced fragment (status '') clobber it
+                }
                 t.lines.push(row.body);
             }
             Some(_) => t.replies.push(ReplyResp { author: row.author, body: row.body, from_jira: row.from_jira, broadcast: row.broadcast }),
@@ -1886,6 +1963,7 @@ async fn bot_post(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Bot
     weavn_store::status_set(&s.pool, &ws, &key, &status).await.map_err(db_err)?;
     save_actions(&s, &ws, &key, &r.actions).await?;
     notify_for_message(&s, &ws, &name, "", &channel, &key, &text, &[]).await;
+    run_workflows(&s, &ws, &channel, &key, &text).await;
     s.hub.publish(&ws, event_message(&channel));
     Ok(Json(OutcomeResp { kind: "bot", issue: key, comment: None }))
 }
@@ -1966,6 +2044,73 @@ async fn action(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Actio
     }
     s.hub.publish(&ws, event_message(&channel));
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// --- Tier 4: Workflow Builder -----------------------------------------------
+
+#[derive(Deserialize)]
+struct WorkflowReq {
+    #[serde(default)]
+    channel: Option<String>,
+    #[serde(default)]
+    contains: String,
+    kind: String,
+    #[serde(default)]
+    arg: String,
+}
+
+#[derive(Serialize)]
+struct WorkflowInfo {
+    id: i64,
+    channel: String,
+    contains: String,
+    kind: String,
+    arg: String,
+    enabled: bool,
+}
+
+async fn workflows_create(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<WorkflowReq>) -> Result<Json<WorkflowInfo>, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    let kind = r.kind.trim().to_string();
+    if !matches!(kind.as_str(), "react" | "reply" | "transition" | "addlabel" | "pin") {
+        return Err(bad_request("kind must be react | reply | transition | addlabel | pin".to_string()));
+    }
+    let channel = r.channel.unwrap_or_default();
+    let channel = if channel.trim().is_empty() { "*".to_string() } else { channel.trim().to_string() };
+    let contains = r.contains.trim().to_string();
+    let arg = r.arg.trim().to_string();
+    let id = weavn_store::workflow_create(&s.pool, &ws, &channel, &contains, &kind, &arg, &user).await.map_err(db_err)?;
+    Ok(Json(WorkflowInfo { id, channel, contains, kind, arg, enabled: true }))
+}
+
+async fn workflows_get(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Vec<WorkflowInfo>>, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    let list = weavn_store::workflows_list(&s.pool, &ws)
+        .await
+        .map_err(db_err)?
+        .into_iter()
+        .map(|(id, channel, contains, kind, arg, enabled, _by)| WorkflowInfo { id, channel, contains, kind, arg, enabled })
+        .collect();
+    Ok(Json(list))
+}
+
+#[derive(Deserialize)]
+struct WorkflowIdReq {
+    id: i64,
+    #[serde(default)]
+    enabled: Option<bool>,
+}
+
+async fn workflows_delete(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<WorkflowIdReq>) -> Result<StatusCode, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    weavn_store::workflow_delete(&s.pool, &ws, r.id).await.map_err(db_err)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn workflows_toggle(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<WorkflowIdReq>) -> Result<StatusCode, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    weavn_store::workflow_toggle(&s.pool, &ws, r.id, r.enabled.unwrap_or(true)).await.map_err(db_err)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // --- Tier 3: incoming webhooks ----------------------------------------------
@@ -2073,6 +2218,7 @@ async fn hook(State(s): State<Shared>, Path(token): Path<String>, Json(b): Json<
     weavn_store::status_set(&s.pool, &ws, &key, &status).await.map_err(db_err)?;
     save_actions(&s, &ws, &key, &b.actions).await?;
     notify_for_message(&s, &ws, &label, "", &channel, &key, &text, &[]).await;
+    run_workflows(&s, &ws, &channel, &key, &text).await;
     s.hub.publish(&ws, event_message(&channel));
     Ok(Json(OutcomeResp { kind: "webhook", issue: key, comment: None }))
 }
