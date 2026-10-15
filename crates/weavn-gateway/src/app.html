@@ -102,6 +102,22 @@
   .chead-ctl{display:flex;align-items:center;gap:4px}
   #activitytoggle{border:1px solid var(--border);border-radius:999px;padding:1px 9px;font-size:10px;letter-spacing:.03em;color:var(--muted);background:var(--bg)}
   #activitytoggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .treebar{display:flex;align-items:center;gap:6px;padding:3px 12px 6px}
+  .treebar select{flex:1;border:1px solid var(--border);border-radius:7px;padding:4px 7px;font:inherit;font-size:12px;background:var(--surface);color:var(--fg);cursor:pointer}
+  /* hierarchy tree rows under a board */
+  .texp{color:var(--rail-muted);font-size:16px;cursor:pointer;flex:none;width:16px;text-align:center;border-radius:4px}
+  .texp:hover{color:var(--accent)}
+  .texp-sp{width:16px;flex:none}
+  .trow{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:7px;cursor:pointer;color:var(--rail-fg);font-size:12.5px}
+  .trow:hover,.trow.active{background:var(--accent-weak)}
+  .trow.active .tnm{color:var(--accent);font-weight:600}
+  .trow.epic{padding-left:30px}
+  .trow.story{padding-left:50px}
+  .trow .tchev{color:var(--rail-muted);font-size:15px;flex:none;width:14px;cursor:pointer}
+  .trow .tchev:hover{color:var(--accent)}
+  .trow .tei{color:var(--rail-muted);font-size:13px;flex:none}
+  .trow .tnm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .trow .tk{font-family:var(--mono);font-size:9px;color:var(--rail-muted);opacity:.7}
   .side-chans{flex:1;overflow:auto;padding:2px 6px 10px}
   .side-chans .crow.active{background:var(--accent-weak)}
   .side-chans .crow.active .cn{color:var(--accent);font-weight:600}
@@ -439,7 +455,6 @@
   <div class="top">
     <svg width="20" height="20" viewBox="0 0 120 120" fill="none" aria-label="weavN"><defs><linearGradient id="wmA2" x1="18" y1="92" x2="74" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B1B7D"/><stop offset="1" stop-color="#4F46E5"/></linearGradient><linearGradient id="wmB2" x1="50" y1="38" x2="100" y2="90" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4F46E5"/><stop offset="1" stop-color="#06B6D4"/></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="15"><path d="M24 32 L48 90 L70 38" stroke="url(#wmA2)"/><path d="M50 38 L72 90 L96 32" stroke="url(#wmB2)"/></g></svg>
     <span class="nm wm">weav<span class="n">N</span></span>
-    <div class="modeseg" id="modeseg"><button data-m="channels" class="on"><span class="mi">forum</span> Channels</button><button data-m="browse"><span class="mi">account_tree</span> Browse</button></div>
     <a class="kk" id="dash" target="_blank" rel="noopener" href="#">Dashboards ↗</a>
     <span class="pres" id="pres" title="People here now"></span>
     <span class="pres" id="onclock" title="On the clock"></span>
@@ -463,6 +478,7 @@
         <button class="snav" id="startersbtn"><span class="mi">auto_awesome</span> Starter channels</button>
       </div>
       <div class="side-chead"><span>Channels</span><span class="chead-ctl"><button id="newsection" title="New section"><span class="mi">create_new_folder</span></button><button id="activitytoggle" title="Toggle: show only channels with new activity">All</button><button id="rescanbtn" title="Re-scan JIRA for boards"><span class="mi">refresh</span></button></span></div>
+      <div class="treebar"><span class="mi" style="font-size:15px;color:var(--rail-muted)">filter_list</span><select id="treestatus" title="Filter expanded epics/stories by status"><option value="">All statuses</option><option value="active">In progress</option><option value="todo">To do</option><option value="done">Done</option></select></div>
       <div class="side-chans" id="sidechans"><div class="pmuted">Loading channels…</div></div>
     </aside>
     <section class="center">
@@ -531,21 +547,6 @@
         </form>
       </div>
     </aside>
-  </div>
-  <div class="browse hidden" id="browse">
-    <div class="bcol" data-col="projects">
-      <div class="bhead"><button class="bcollapse" title="Collapse"><span class="mi">chevron_left</span></button><span class="btitle">Projects</span></div>
-      <div class="blist" id="bprojects"></div>
-    </div>
-    <div class="bcol" data-col="epics">
-      <div class="bhead"><button class="bcollapse" title="Collapse"><span class="mi">chevron_left</span></button><span class="btitle">Epics</span></div>
-      <div class="blist" id="bepics"><div class="bpmuted">Pick a project →</div></div>
-    </div>
-    <div class="bcol" data-col="stories">
-      <div class="bhead"><button class="bcollapse" title="Collapse"><span class="mi">chevron_left</span></button><span class="btitle">Stories &amp; Tasks</span></div>
-      <div class="blist" id="bstories"><div class="bpmuted">Pick an epic →</div></div>
-    </div>
-    <div class="bconvo" id="bconvo"><div class="bcempty">Pick a project, then an epic, then a story or task to open its conversation.</div></div>
   </div>
   <div class="chanlist" id="chanlist"></div>
 </section>
@@ -644,9 +645,8 @@ async function showApp(sess){
   $('#who').textContent=MENAME;
   $('#meav').textContent=initials(MENAME);
   renderUsage(USAGE);
-  await loadSaved(); loadState(); await loadStatusMap(); applyDensity(); wireBrowse();
+  await loadSaved(); loadState(); await loadStatusMap(); applyDensity();
   renderSidebar(); connectWS(); loadAvailability(); loadNotifications();
-  try{ if(localStorage.getItem('weavn-mode')==='browse') setMode('browse'); }catch(e){}
 }
 let NOTIFS={unread:0,items:[]};
 function renderBell(n){
@@ -1046,78 +1046,77 @@ function setupResizers(){
   const rt=$('#rs-thread'); if(rt) rt.addEventListener('pointerdown',e=>start('thread',e));
 }
 
-// --- Browse mode: Projects → Epics → Stories/Tasks drill-down (live JIRA) -------
-let BMODE='channels', BPROJ=null, BEPIC=null, BISSUE=null, BCOLLAPSE={projects:false,epics:false,stories:false};
-function setMode(m){
-  BMODE=m;
-  $('#browse').classList.toggle('hidden',m!=='browse');
-  $('.main').classList.toggle('hidden',m==='browse');
-  document.querySelectorAll('#modeseg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
-  try{localStorage.setItem('weavn-mode',m);}catch(e){}
-  if(m==='browse') loadBProjects();
-}
-function wireBrowse(){
-  document.querySelectorAll('#modeseg button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.m)));
-  try{const v=localStorage.getItem('weavn-bcollapse'); if(v)BCOLLAPSE=JSON.parse(v);}catch(e){}
-  document.querySelectorAll('#browse .bcol').forEach(col=>{
-    const key=col.dataset.col;
-    col.classList.toggle('collapsed',!!BCOLLAPSE[key]);
-    const toggle=()=>{ BCOLLAPSE[key]=!BCOLLAPSE[key]; col.classList.toggle('collapsed',BCOLLAPSE[key]); try{localStorage.setItem('weavn-bcollapse',JSON.stringify(BCOLLAPSE));}catch(e){} };
-    col.querySelector('.bcollapse').addEventListener('click',e=>{e.stopPropagation();toggle();});
-    col.querySelector('.bhead').addEventListener('click',()=>{ if(col.classList.contains('collapsed')) toggle(); });
+// --- Hierarchy tree: boards expand inline to epics → stories/tasks (live JIRA) ---
+let TREE_EXP=new Set(), TREE_STATUS='', TREE_CACHE={}, TREEISSUE=null;
+try{const v=localStorage.getItem('weavn-tree-exp'); if(v)TREE_EXP=new Set(JSON.parse(v));}catch(e){}
+function saveTreeExp(){ try{localStorage.setItem('weavn-tree-exp',JSON.stringify([...TREE_EXP]));}catch(e){} }
+function cssEsc(s){ return (s||'').replace(/["\\]/g,'\\$&'); }
+function treeStatusOk(st){ return !TREE_STATUS || statusCat(st)===TREE_STATUS; }
+async function fetchEpics(board){ if(TREE_CACHE['E:'+board])return TREE_CACHE['E:'+board]; try{const r=await api('/epics?project='+encodeURIComponent(board)); if(r.ok){const v=await r.json();TREE_CACHE['E:'+board]=v;return v;}}catch(e){} return []; }
+async function fetchStories(epic){ if(TREE_CACHE['S:'+epic])return TREE_CACHE['S:'+epic]; try{const r=await api('/children?parent='+encodeURIComponent(epic)); if(r.ok){const v=await r.json();TREE_CACHE['S:'+epic]=v;return v;}}catch(e){} return []; }
+function epicRowHtml(e){ const exp=TREE_EXP.has(e.key); return `<div class="trow epic${exp?' exp':''}" data-k="${esc(e.key)}" title="${esc(e.summary)}"><span class="tchev mi" data-k="${esc(e.key)}">${exp?'expand_more':'chevron_right'}</span><span class="mi tei">bookmark</span><span class="tnm">${esc(e.summary||e.key)}</span><span class="tk">${esc(e.key)}</span></div>`; }
+function storyRowHtml(c){ return `<div class="trow story" data-k="${esc(c.key)}" title="${esc(c.summary)}">${typeChip(c.issue_type)}<span class="tnm">${esc(c.summary||c.key)}</span><span class="tk">${esc(c.key)}</span></div>`; }
+function wireTreeRows(container){
+  container.querySelectorAll('.trow.epic').forEach(r=>{
+    r.querySelector('.tchev').addEventListener('click',e=>{e.stopPropagation(); toggleEpic(r,r.dataset.k);});
+    r.addEventListener('click',e=>{ if(e.target.closest('.tchev'))return; openTreeIssue(r.dataset.k); });
   });
+  container.querySelectorAll('.trow.story').forEach(r=>r.addEventListener('click',()=>openTreeIssue(r.dataset.k)));
 }
-async function loadBProjects(){
-  await ensureProjects();
-  const el=$('#bprojects');
-  if(!PROJECTS.length){el.innerHTML='<div class="bpmuted">No projects visible to your account.</div>';return;}
-  el.innerHTML=PROJECTS.slice().sort((a,b)=>(a.name||a.key).localeCompare(b.name||b.key)).map(p=>`<div class="brow${p.key===BPROJ?' active':''}" data-k="${esc(p.key)}" title="${esc(p.key)}"><span class="bnm">${esc(p.name||p.key)}</span><span class="bk">${esc(p.key)}</span><span class="mi bchev">chevron_right</span></div>`).join('');
-  el.querySelectorAll('.brow').forEach(r=>r.addEventListener('click',()=>selectBProject(r.dataset.k)));
+function collapseAfter(row){ const sub=row.nextElementSibling; if(sub&&sub.classList.contains('tsub'))sub.remove(); }
+async function expandBoard(crow, board){
+  if(crow.nextElementSibling&&crow.nextElementSibling.classList.contains('tsub'))return;
+  const sub=document.createElement('div'); sub.className='tsub'; sub.dataset.for=board;
+  sub.innerHTML='<div class="bpmuted" style="padding:4px 10px 4px 36px"><span class="spin"></span>epics…</div>';
+  crow.insertAdjacentElement('afterend',sub);
+  const epics=(await fetchEpics(board)).filter(e=>treeStatusOk(e.status));
+  sub.innerHTML=epics.length?epics.map(epicRowHtml).join(''):'<div class="bpmuted" style="padding:3px 10px 3px 36px">No epics here</div>';
+  wireTreeRows(sub);
+  for(const e of epics){ if(TREE_EXP.has(e.key)){ const er=sub.querySelector('.trow.epic[data-k="'+cssEsc(e.key)+'"]'); if(er) await expandEpic(er,e.key); } }
 }
-async function selectBProject(key){
-  BPROJ=key; BEPIC=null;
-  $('#bprojects').querySelectorAll('.brow').forEach(r=>r.classList.toggle('active',r.dataset.k===key));
-  $('#bstories').innerHTML='<div class="bpmuted">Pick an epic →</div>';
-  const el=$('#bepics'); el.innerHTML='<div class="bpmuted"><span class="spin"></span>Loading epics…</div>';
-  let rows=[]; try{const r=await api('/epics?project='+encodeURIComponent(key)); if(!r.ok){el.innerHTML='<div class="bpmuted">'+esc(await r.text())+'</div>';return;} rows=await r.json();}catch(e){el.innerHTML='<div class="bpmuted">Network error.</div>';return;}
-  if(!rows.length){el.innerHTML='<div class="bpmuted">No epics in this project.</div>';return;}
-  el.innerHTML=rows.map(ep=>`<div class="brow" data-k="${esc(ep.key)}" title="${esc(ep.summary)}"><span class="bnm">${esc(ep.summary||ep.key)}</span><span class="bk">${esc(ep.key)}</span><span class="mi bchev">chevron_right</span></div>`).join('');
-  el.querySelectorAll('.brow').forEach(r=>r.addEventListener('click',()=>selectBEpic(r.dataset.k)));
+async function expandEpic(erow, epic){
+  if(erow.nextElementSibling&&erow.nextElementSibling.classList.contains('tsub'))return;
+  const sub=document.createElement('div'); sub.className='tsub'; sub.dataset.for=epic;
+  sub.innerHTML='<div class="bpmuted" style="padding:4px 10px 4px 50px"><span class="spin"></span>…</div>';
+  erow.insertAdjacentElement('afterend',sub);
+  const stories=(await fetchStories(epic)).filter(c=>treeStatusOk(c.status));
+  sub.innerHTML=stories.length?stories.map(storyRowHtml).join(''):'<div class="bpmuted" style="padding:3px 10px 3px 50px">No stories or tasks</div>';
+  wireTreeRows(sub);
 }
-async function selectBEpic(key){
-  BEPIC=key;
-  $('#bepics').querySelectorAll('.brow').forEach(r=>r.classList.toggle('active',r.dataset.k===key));
-  const el=$('#bstories'); el.innerHTML='<div class="bpmuted"><span class="spin"></span>Loading…</div>';
-  let rows=[]; try{const r=await api('/children?parent='+encodeURIComponent(key)); if(!r.ok){el.innerHTML='<div class="bpmuted">'+esc(await r.text())+'</div>';return;} rows=await r.json();}catch(e){el.innerHTML='<div class="bpmuted">Network error.</div>';return;}
-  if(!rows.length){el.innerHTML='<div class="bpmuted">No stories or tasks under this epic.</div>';return;}
-  el.innerHTML=rows.map(c=>`<div class="brow" data-k="${esc(c.key)}" title="${esc(c.summary)}">${typeChip(c.issue_type)}<span class="bnm">${esc(c.summary||c.key)}</span><span class="bk">${esc(c.key)}</span></div>`).join('');
-  el.querySelectorAll('.brow').forEach(r=>r.addEventListener('click',()=>openBIssue(r.dataset.k)));
+function toggleBoard(crow, board){
+  const c=crow.querySelector('.texp');
+  if(TREE_EXP.has(board)){ TREE_EXP.delete(board); collapseAfter(crow); if(c)c.textContent='chevron_right'; }
+  else { TREE_EXP.add(board); if(c)c.textContent='expand_more'; expandBoard(crow,board); }
+  saveTreeExp();
 }
-async function openBIssue(key){
-  BISSUE=key;
-  $('#bstories').querySelectorAll('.brow').forEach(r=>r.classList.toggle('active',r.dataset.k===key));
-  const el=$('#bconvo'); el.innerHTML='<div class="bcempty"><span class="spin"></span>Loading '+esc(key)+'…</div>';
-  let d; try{const r=await api('/issue?key='+encodeURIComponent(key)); if(!r.ok){el.innerHTML='<div class="bcempty">'+esc(await r.text())+'</div>';return;} d=await r.json();}catch(e){el.innerHTML='<div class="bcempty">Network error.</div>';return;}
-  renderBConvo(d);
+function toggleEpic(erow, epic){
+  const c=erow.querySelector('.tchev');
+  if(TREE_EXP.has(epic)){ TREE_EXP.delete(epic); collapseAfter(erow); erow.classList.remove('exp'); if(c)c.textContent='chevron_right'; }
+  else { TREE_EXP.add(epic); erow.classList.add('exp'); if(c)c.textContent='expand_more'; expandEpic(erow,epic); }
+  saveTreeExp();
 }
-function renderBConvo(d){
-  const k=esc(d.issue_key);
-  const title=esc((d.lines[0]||'').split('\n')[0]);
-  const epic=d.parent?`<a class="m-epic" href="${esc(permalink(d.parent))}" target="_blank" rel="noopener">↳ ${esc(d.parent)}${d.parent_summary?' '+esc(d.parent_summary):''}</a>`:'';
-  const head=`<div class="bchead">${typeChip(d.issue_type)}<span class="bctitle">${title}</span>${d.status?`<button class="sdot ${statusClass(d.status)}" data-issue="${k}" title="Change status"><span class="dot"></span>${esc(d.status)}</button>`:''}${epic}<a class="m-key" href="${esc(permalink(d.issue_key))}" target="_blank" rel="noopener">${k}</a></div>`;
-  const root=`<article class="msg troot"><div class="m-gut"><div class="av">${esc(initials(d.author))}</div></div><div class="m-main"><div class="m-head"><span class="m-who" style="color:${authorColor(d.author)}">${esc(d.author)}</span><span class="m-time">${esc(fmtTime(d.ts))}</span></div><div class="lines">${renderMd(d.lines.join('\n'))}</div></div></article>`;
-  const reps=(d.replies||[]).length?d.replies.map(x=>`<div class="rep"><div class="rhead"><span class="ra" style="color:${authorColor(x.author)}">${esc(x.author)}</span>${x.from_jira?'<span class="fj">FROM JIRA</span>':''}<span class="rtime">${esc(fmtTime(x.ts))}</span></div><div class="rbody">${mdInline(esc(x.body))}</div></div>`).join(''):'<div class="bpmuted">No comments yet — start the conversation below.</div>';
-  $('#bconvo').innerHTML=head+`<div class="bcbody">${root}${reps}</div><div class="bcompose"><form id="bcform"><input id="bcinput" placeholder="Message ${k} — posts a JIRA comment" autocomplete="off"><button type="submit">Send</button></form></div>`;
-  const sd=$('#bconvo .sdot'); if(sd) sd.addEventListener('click',e=>{e.stopPropagation();openStatusMenu(sd,d.issue_key);});
-  const body=$('#bconvo .bcbody'); body.scrollTop=body.scrollHeight;
-  $('#bcform').addEventListener('submit',async e=>{
-    e.preventDefault(); const v=$('#bcinput').value.trim(); if(!v)return;
-    const btn=e.target.querySelector('button'); btn.disabled=true;
-    const r=await api('/issue/comment',{method:'POST',body:JSON.stringify({key:d.issue_key,body:v})});
-    btn.disabled=false;
-    if(!r.ok){alert('Failed: '+await r.text());return;}
-    $('#bcinput').value=''; openBIssue(d.issue_key);
-  });
+$('#treestatus').addEventListener('change',e=>{ TREE_STATUS=e.target.value; refilterTree(); });
+// re-apply saved expansions after the sidebar re-renders (uses the epic/story cache)
+async function restoreTree(){
+  for(const crow of document.querySelectorAll('#sidechans .crow')){
+    const ch=crow.dataset.ch;
+    if(ch && ch.indexOf(' / ')<0 && TREE_EXP.has(ch)){ const c=crow.querySelector('.texp'); if(c)c.textContent='expand_more'; await expandBoard(crow,ch); }
+  }
+}
+// retint tree rows when the status filter changes (re-expand from cache)
+function refilterTree(){
+  document.querySelectorAll('#sidechans .tsub').forEach(s=>s.remove());
+  restoreTree();
+}
+// open a tree issue (epic/story) as a conversation in the thread pane
+async function openTreeIssue(key){
+  CURTHREAD=null;
+  $('.main').classList.add('tp'); $('#threadpane').classList.remove('hidden');
+  document.querySelectorAll('#sidechans .trow.active').forEach(r=>r.classList.remove('active'));
+  const tr=document.querySelector('#sidechans .trow[data-k="'+cssEsc(key)+'"]'); if(tr)tr.classList.add('active');
+  $('#threadbody').innerHTML='<div class="pmuted" style="padding:14px"><span class="spin"></span>Loading '+esc(key)+'…</div>';
+  let d; try{const r=await api('/issue?key='+encodeURIComponent(key)); if(!r.ok){$('#threadbody').innerHTML='<div class="pmuted" style="padding:14px">'+esc(await r.text())+'</div>';return;} d=await r.json();}catch(e){$('#threadbody').innerHTML='<div class="pmuted" style="padding:14px">Network error.</div>';return;}
+  TREEISSUE=d; renderThread(d); $('#threadinput').focus();
 }
 
 // --- views: Updates (the board river) | Threads | Activity (both workspace-wide) ---
@@ -1178,11 +1177,11 @@ async function loadActivityFeed(){
 // --- thread pane: Slack-style thread expansion in the right rail ---
 function openThread(key){
   const t=THREADS.find(x=>x.issue_key===key); if(!t) return;
-  CURTHREAD=key;
+  CURTHREAD=key; TREEISSUE=null;
   $('.main').classList.add('tp'); $('#threadpane').classList.remove('hidden');
   renderThread(t); $('#threadinput').focus();
 }
-function closeThread(){ CURTHREAD=null; $('#threadpane').classList.add('hidden'); $('.main').classList.remove('tp'); }
+function closeThread(){ CURTHREAD=null; TREEISSUE=null; document.querySelectorAll('#sidechans .trow.active').forEach(r=>r.classList.remove('active')); $('#threadpane').classList.add('hidden'); $('.main').classList.remove('tp'); }
 function renderThread(t){
   const k=esc(t.issue_key);
   const root=`<article class="msg troot">
@@ -1201,9 +1200,16 @@ function renderThread(t){
 $('#threadclose').addEventListener('click',closeThread);
 $('#threadform').addEventListener('submit',async e=>{
   e.preventDefault();
-  const body=$('#threadinput').value.trim(); if(!body||!CURTHREAD) return;
-  const broadcast=$('#threadbc').checked;
+  const body=$('#threadinput').value.trim(); if(!body) return;
   const btn=e.target.querySelector('button[type=submit]'); btn.disabled=true;
+  if(TREEISSUE){ // a hierarchy issue — post a JIRA comment directly
+    const r=await api('/issue/comment',{method:'POST',body:JSON.stringify({key:TREEISSUE.issue_key,body})});
+    btn.disabled=false;
+    if(!r.ok){alert('Comment failed: '+await r.text());return;}
+    $('#threadinput').value=''; openTreeIssue(TREEISSUE.issue_key); return;
+  }
+  if(!CURTHREAD){ btn.disabled=false; return; }
+  const broadcast=$('#threadbc').checked;
   const r=await api('/reply',{method:'POST',body:JSON.stringify({issue:CURTHREAD,body,broadcast})});
   btn.disabled=false;
   if(!r.ok){alert('Reply failed: '+await r.text());return;}
@@ -1393,7 +1399,10 @@ async function renderSidebar(){
     // Show the human board NAME; keep the key as a faint secondary (less shouty).
     const label=nested?(tail||c.name||c.channel):(c.name||c.channel);
     const sub=(!nested&&c.name&&c.name!==c.channel)?` <span class="cboard">${esc(c.channel)}</span>`:'';
+    const canExpand=!nested && c.channel.indexOf(' / ')<0; // a top-level board → epics
+    const exp=TREE_EXP.has(c.channel);
     return `<div class="crow${c.archived?' arch':''}${nested?' nested':''}${c.unread>0?' unread':''}${c.channel===CURCH?' active':''}" draggable="true" data-ch="${esc(c.channel)}" title="${esc(c.channel)}${c.name?' — '+esc(c.name):''}">
+      ${canExpand?`<span class="texp mi" data-ch="${esc(c.channel)}" title="Show epics">${exp?'expand_more':'chevron_right'}</span>`:'<span class="texp-sp"></span>'}
       <span class="st${c.starred?' on':''}" data-ch="${esc(c.channel)}" data-on="${c.starred?1:0}" title="Star channel"><span class="mi${c.starred?' filled':''}">star</span></span>
       <span class="cn">${c.private?'<span class="mi" style="font-size:13px;vertical-align:-2px">lock</span> ':''}${esc(label)}${sub}</span>${c.unread>0?`<span class="ubadge">${c.unread}</span>`:''}<span class="cc">${c.count||''}</span>
       <span class="ar" data-ch="${esc(c.channel)}" data-on="${c.archived?1:0}" title="Archive">${c.archived?'unarchive':'archive'}</span>
@@ -1429,8 +1438,9 @@ async function renderSidebar(){
   wireSidebar(cl);
 }
 function wireSidebar(cl){
+  cl.querySelectorAll('.texp').forEach(x=>x.addEventListener('click',e=>{e.stopPropagation(); toggleBoard(x.closest('.crow'), x.dataset.ch);}));
   cl.querySelectorAll('.crow').forEach(r=>{
-    r.addEventListener('click',e=>{ if(e.target.closest('.st')||e.target.closest('.ar'))return; const ch=r.dataset.ch; openChannel(ch,ch.indexOf(' / ')<0); });
+    r.addEventListener('click',e=>{ if(e.target.closest('.st')||e.target.closest('.ar')||e.target.closest('.texp'))return; const ch=r.dataset.ch; openChannel(ch,ch.indexOf(' / ')<0); });
     r.addEventListener('dragstart',e=>{ DRAG={type:'ch',ch:r.dataset.ch}; r.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain',r.dataset.ch);}catch(_){} });
     r.addEventListener('dragend',()=>{ r.classList.remove('dragging'); clearDropMarks(cl); DRAG=null; });
     r.addEventListener('dragover',e=>{ if(DRAG&&DRAG.type==='ch'){ e.preventDefault(); clearDropMarks(cl); r.classList.add('dropbefore'); } });
@@ -1458,6 +1468,7 @@ function wireSidebar(cl){
     h.addEventListener('drop',e=>{ if(DRAG&&DRAG.type==='sec'){ e.preventDefault(); e.stopPropagation(); secMove(DRAG.id,h.dataset.sid); saveLayout(); renderSidebar(); } });
     h.querySelector('.smenu').addEventListener('click',e=>{ e.stopPropagation(); openSecMenu(h.querySelector('.smenu'),h.dataset.sid); });
   });
+  restoreTree(); // re-apply saved board/epic expansions (from cache)
 }
 function openSecMenu(anchor,sid){
   document.querySelectorAll('.stmenu').forEach(m=>m.remove());
