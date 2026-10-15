@@ -50,6 +50,41 @@ pub async fn config_get(pool: &PgPool, workspace: &str, key: &str) -> sqlx::Resu
         .await
 }
 
+/// Ensure a per-workspace inbound-webhook secret exists; returns it (idempotent).
+/// `candidate` is used only if none exists yet.
+pub async fn jira_webhook_ensure(pool: &PgPool, workspace: &str, candidate: &str) -> sqlx::Result<String> {
+    sqlx::query("insert into jira_webhook (workspace, secret) values ($1, $2) on conflict (workspace) do nothing")
+        .bind(workspace)
+        .bind(candidate)
+        .execute(pool)
+        .await?;
+    sqlx::query_scalar::<_, String>("select secret from jira_webhook where workspace = $1")
+        .bind(workspace)
+        .fetch_one(pool)
+        .await
+}
+
+/// The workspace a webhook secret belongs to (for routing inbound JIRA events).
+pub async fn jira_webhook_workspace(pool: &PgPool, secret: &str) -> sqlx::Result<Option<String>> {
+    sqlx::query_scalar::<_, String>("select workspace from jira_webhook where secret = $1")
+        .bind(secret)
+        .fetch_optional(pool)
+        .await
+}
+
+/// Does a reply with this exact body already exist on the issue? Cheap de-dup so
+/// a webhook doesn't echo a comment weavn itself just posted (or a JIRA retry).
+pub async fn comment_exists(pool: &PgPool, workspace: &str, issue: &str, body: &str) -> sqlx::Result<bool> {
+    sqlx::query_scalar::<_, bool>(
+        "select exists(select 1 from message where workspace = $1 and issue_key = $2 and parent_issue is not null and body = $3)",
+    )
+    .bind(workspace)
+    .bind(issue)
+    .bind(body)
+    .fetch_one(pool)
+    .await
+}
+
 /// Per-user preference value (workspace + user + key). `None` if unset.
 pub async fn user_pref_get(pool: &PgPool, workspace: &str, user: &str, key: &str) -> sqlx::Result<Option<String>> {
     sqlx::query_scalar::<_, String>("select value from user_pref where workspace = $1 and user_id = $2 and key = $3")

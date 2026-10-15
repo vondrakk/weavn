@@ -291,6 +291,8 @@ async fn main() {
         .route("/webhooks", get(webhooks_list))
         .route("/webhook/delete", post(webhook_delete))
         .route("/hook/{token}", post(hook))
+        .route("/jira/hook/{secret}", post(jira_hook))
+        .route("/jira/webhook", get(jira_webhook_info))
         .route("/unfurl", get(unfurl))
         .route("/sprints", get(sprints))
         .route("/sprint/assign", post(sprint_assign))
@@ -1174,6 +1176,67 @@ fn one_line(body: &str, max: usize) -> String {
     } else {
         flat
     }
+}
+
+/// Receive a JIRA webhook (issue created/updated, comment created) and upsert it
+/// into the projection, then push to connected clients so the stream updates live.
+/// Unauthenticated: the `{secret}` in the URL authenticates and routes to the ws.
+async fn jira_hook(State(s): State<Shared>, Path(secret): Path<String>, Json(v): Json<serde_json::Value>) -> StatusCode {
+    let ws = match weavn_store::jira_webhook_workspace(&s.pool, &secret).await {
+        Ok(Some(w)) => w,
+        _ => return StatusCode::NOT_FOUND,
+    };
+    let event = v["webhookEvent"].as_str().unwrap_or("");
+    let issue = &v["issue"];
+    let key = match issue["key"].as_str() {
+        Some(k) if !k.is_empty() => k.to_string(),
+        _ => return StatusCode::OK,
+    };
+    let f = &issue["fields"];
+    let channel = f["project"]["key"]
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| key.split('-').next().unwrap_or(&key).to_string());
+    match event {
+        "jira:issue_created" | "jira:issue_updated" => {
+            let summary = f["summary"].as_str().unwrap_or("").to_string();
+            let desc = if f["description"].is_null() { String::new() } else { weavn::format::adf_to_mrkdwn(&f["description"]) };
+            let body = if desc.is_empty() { summary.clone() } else { format!("{summary}\n{desc}") };
+            let status = f["status"]["name"].as_str().unwrap_or("").to_string();
+            let itype = f["issuetype"]["name"].as_str().unwrap_or("").to_string();
+            let pkey = f["parent"]["key"].as_str().unwrap_or("");
+            let psum = f["parent"]["fields"]["summary"].as_str().unwrap_or("");
+            let reporter = f["reporter"]["displayName"].as_str().unwrap_or("JIRA").to_string();
+            let created_ts = parse_jira_ts(f["created"].as_str().unwrap_or("")).unwrap_or_else(unix_now);
+            if !weavn_store::issue_exists(&s.pool, &ws, &key).await.unwrap_or(false) {
+                let _ = weavn_store::message_insert_at(&s.pool, &ws, &channel, &key, None, &reporter, &body, true, false, created_ts).await;
+            }
+            let _ = weavn_store::status_set(&s.pool, &ws, &key, &status).await;
+            let _ = weavn_store::issue_set_meta(&s.pool, &ws, &key, &itype, (!pkey.is_empty()).then_some(pkey), (!psum.is_empty()).then_some(psum)).await;
+            s.hub.publish(&ws, event_message(&channel));
+        }
+        "comment_created" | "comment_updated" => {
+            let c = &v["comment"];
+            let author = c["author"]["displayName"].as_str().unwrap_or("JIRA").to_string();
+            let cbody = if c["body"].is_string() { c["body"].as_str().unwrap_or("").to_string() } else { weavn::format::adf_to_mrkdwn(&c["body"]) };
+            let cts = parse_jira_ts(c["created"].as_str().unwrap_or("")).unwrap_or_else(unix_now);
+            if !cbody.is_empty() && !weavn_store::comment_exists(&s.pool, &ws, &key, &cbody).await.unwrap_or(false) {
+                let _ = weavn_store::message_insert_at(&s.pool, &ws, &channel, &key, Some(&key), &author, &cbody, true, false, cts).await;
+                s.hub.publish(&ws, event_message(&channel));
+            }
+        }
+        _ => {}
+    }
+    StatusCode::OK
+}
+
+/// Provision (idempotently) and return this workspace's inbound-webhook URL, to
+/// register in JIRA (Settings → System → WebHooks, or via scripts/jira-webhook.sh).
+async fn jira_webhook_info(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<serde_json::Value>, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    let secret = weavn_store::jira_webhook_ensure(&s.pool, &ws, &gen_token()).await.map_err(db_err)?;
+    let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("app.weavn.io");
+    Ok(Json(serde_json::json!({ "url": format!("https://{host}/jira/hook/{secret}"), "secret": secret })))
 }
 
 /// One issue in the "Catch me up" brief, with how long it's been idle.

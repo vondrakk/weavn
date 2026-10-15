@@ -265,6 +265,12 @@
   .catrow .cs .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
   .catrow .cs .ov{font-size:9px;font-weight:700;color:var(--accent);background:var(--accent-weak);border-radius:4px;padding:0 4px}
   .catrow select{border:1px solid var(--border);border-radius:7px;padding:4px 6px;font:inherit;font-size:12px;background:var(--bg);color:var(--fg);cursor:pointer}
+  .catpanel .cwh{border-top:1px solid var(--border);margin-top:8px;padding-top:8px}
+  .catpanel .cwh h4{margin-top:0}
+  .catpanel .cwh code{font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 3px}
+  .cwhrow{display:flex;gap:6px;margin:0 4px}
+  .cwhrow input{flex:1;min-width:0;border:1px solid var(--border);border-radius:7px;padding:5px 7px;font:inherit;font-size:11px;background:var(--bg);color:var(--fg)}
+  .cwhrow .fgear{font-size:11px;padding:0 9px}
   .catdot-done{background:var(--ok)}.catdot-prog{background:#e2b63c}.catdot-todo{background:var(--faint)}
   /* workspace feeds (Threads / Activity) */
   .feedhead{padding:12px 18px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
@@ -1061,7 +1067,9 @@ function openCatPanel(){
   panel.innerHTML='<h4>Status categories</h4><div class="hint">How each JIRA status is grouped. “In progress” statuses show in the default view; Done & To do are hidden there. Shared across the workspace.</div>'
     +(names.length?names.map(nm=>{const lc=nm.toLowerCase(),ov=!!STATUSMAP[lc],cat=statusCat(nm);
        return `<div class="catrow"><span class="cs"><span class="dot ${catDotClass(cat)}"></span><span class="nm">${esc(nm)}</span>${ov?'<span class="ov">set</span>':''}</span><select data-st="${esc(nm)}">${opt(ov?STATUSMAP[lc]:'auto')}</select></div>`;
-      }).join(''):'<div class="hint">No statuses seen yet — open a board with issues.</div>');
+      }).join(''):'<div class="hint">No statuses seen yet — open a board with issues.</div>')
+    +'<div class="cwh"><h4>Live JIRA activity</h4><div class="hint">Register this URL as a JIRA webhook (or run <code>scripts/jira-webhook.sh --register &lt;url&gt;</code>) so issue &amp; comment changes stream in automatically.</div>'
+    +'<div class="cwhrow"><input id="cwhurl" readonly placeholder="loading…"><button id="cwhcopy" class="fgear" title="Copy">copy</button></div></div>';
   document.body.appendChild(panel);
   const bb=$('#statuscfg').getBoundingClientRect();
   panel.style.left=Math.max(8,Math.min(bb.left-300,window.innerWidth-348))+'px';
@@ -1076,6 +1084,10 @@ function openCatPanel(){
     const cs=row.querySelector('.cs'); let ov=cs.querySelector('.ov'); const isOv=!!STATUSMAP[nm.toLowerCase()];
     if(isOv&&!ov){ov=document.createElement('span');ov.className='ov';ov.textContent='set';cs.appendChild(ov);} else if(!isOv&&ov){ov.remove();}
   }));
+  // Fill in this workspace's inbound-webhook URL (provisions a secret on first read).
+  (async()=>{ try{const r=await api('/jira/webhook'); if(r.ok){const j=await r.json(); const el=panel.querySelector('#cwhurl'); if(el)el.value=j.url;}}catch(e){} })();
+  const cp=panel.querySelector('#cwhcopy');
+  if(cp)cp.addEventListener('click',async()=>{const el=panel.querySelector('#cwhurl'); if(!el||!el.value)return; try{await navigator.clipboard.writeText(el.value);}catch(e){el.select();document.execCommand&&document.execCommand('copy');} cp.textContent='copied'; setTimeout(()=>cp.textContent='copy',1200);});
   setTimeout(()=>document.addEventListener('click',function off(e){ if(!panel.contains(e.target)&&!e.target.closest('#statuscfg')){panel.remove();document.removeEventListener('click',off);} }),0);
 }
 $('#statuscfg').addEventListener('click',openCatPanel);
