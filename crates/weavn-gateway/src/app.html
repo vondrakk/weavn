@@ -160,6 +160,19 @@
   .filterbar .fqwrap .mi{position:absolute;left:8px;color:var(--faint);font-size:16px;pointer-events:none}
   .filterbar select{border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;font-size:12px;background:var(--surface);color:var(--fg);outline:none;cursor:pointer}
   .filterbar .fcount{color:var(--faint);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .fgear{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:8px;padding:5px 8px;cursor:pointer;line-height:0}
+  .fgear:hover{color:var(--accent);border-color:var(--accent)}
+  /* status-category editor */
+  .catpanel{position:fixed;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.34);width:340px;max-height:72vh;overflow:auto;padding:10px}
+  .catpanel h4{margin:2px 4px 6px;font-size:13px}
+  .catpanel .hint{color:var(--faint);font-size:11px;margin:0 4px 8px;line-height:1.4}
+  .catrow{display:flex;align-items:center;gap:8px;padding:5px 4px;border-top:1px solid var(--border)}
+  .catrow .cs{flex:1;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden}
+  .catrow .cs .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .catrow .cs .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+  .catrow .cs .ov{font-size:9px;font-weight:700;color:var(--accent);background:var(--accent-weak);border-radius:4px;padding:0 4px}
+  .catrow select{border:1px solid var(--border);border-radius:7px;padding:4px 6px;font:inherit;font-size:12px;background:var(--bg);color:var(--fg);cursor:pointer}
+  .catdot-done{background:var(--ok)}.catdot-prog{background:#e2b63c}.catdot-todo{background:var(--faint)}
   /* workspace feeds (Threads / Activity) */
   .feedhead{padding:12px 18px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
   .feedhead .fh-sub{font-weight:400;color:var(--muted);font-size:12px}
@@ -362,6 +375,7 @@
             <option value="old">Oldest first</option>
             <option value="new">Newest first</option>
           </select>
+          <button id="statuscfg" class="fgear" title="Categorize statuses (per workspace)"><span class="mi">tune</span></button>
           <span class="fcount" id="fcount"></span>
         </div>
         <div class="stream" id="stream"><div class="empty">Pick a channel on the left, or press <b>⌘K</b> to jump to one.</div></div>
@@ -497,7 +511,7 @@ async function showApp(sess){
   $('#who').textContent=MENAME;
   $('#meav').textContent=initials(MENAME);
   renderUsage(USAGE);
-  await loadSaved(); loadState();
+  await loadSaved(); loadState(); await loadStatusMap();
   renderSidebar(); connectWS(); loadAvailability(); loadNotifications();
 }
 let NOTIFS={unread:0,items:[]};
@@ -669,7 +683,11 @@ let THREADS=[], LOADEDCH='', CURTHREAD=null, STATUS_TOUCHED=false;
 // Default view is "In progress" = the 'active' category.
 const ST_DONE=/\b(done|closed|close|resolved|complete|completed|cancel|canceled|cancelled|won'?t\s*(do|fix)|will\s*not\s*fix|wontfix|decline|declined|duplicate|invalid|reject|rejected|abandoned|archived|released|shipped|fixed|obsolete)\b/i;
 const ST_TODO=/\b(to\s*do|todo|open|backlog|new|triage|selected\s+for\s+development|to\s+be\s+done|planned|ready|icebox)\b/i;
-function statusCat(s){ s=(s||'').toLowerCase().trim(); if(!s) return 'none'; if(ST_DONE.test(s)) return 'done'; if(ST_TODO.test(s)) return 'todo'; return 'active'; }
+// Per-workspace overrides (status name, lowercased → category) layered over the
+// keyword heuristic. Loaded from /status-map; edited via the categorize panel.
+let STATUSMAP={};
+async function loadStatusMap(){ try{const r=await api('/status-map'); if(r.ok){const m=await r.json(); STATUSMAP={}; for(const k in m) STATUSMAP[(k||'').toLowerCase().trim()]=m[k];}}catch(e){} }
+function statusCat(s){ s=(s||'').toLowerCase().trim(); if(!s) return 'none'; if(STATUSMAP[s]) return STATUSMAP[s]; if(ST_DONE.test(s)) return 'done'; if(ST_TODO.test(s)) return 'todo'; return 'active'; }
 function isActiveStatus(s){ return statusCat(s)==='active'; }
 let FILTER={q:'',status:'__active',sort:'recent'};
 // Apply the board's filter + sort to THREADS. Default is Slack's river: oldest at
@@ -797,6 +815,38 @@ async function loadChannel(){
 $('#fq').addEventListener('input',e=>{FILTER.q=e.target.value;renderStream();});
 $('#fstatus').addEventListener('change',e=>{STATUS_TOUCHED=true;FILTER.status=e.target.value;renderStream();});
 $('#fsort').addEventListener('change',e=>{FILTER.sort=e.target.value;renderStream();});
+// Per-workspace status→category editor (how each JIRA status is grouped).
+const CAT_LABEL={auto:'Auto (detect)',active:'In progress',done:'Done',todo:'To do'};
+function catDotClass(cat){return cat==='done'?'catdot-done':(cat==='active'?'catdot-prog':'catdot-todo');}
+function openCatPanel(){
+  document.querySelectorAll('.catpanel').forEach(p=>p.remove());
+  const set=new Map(); // lowercased → display name
+  THREADS.forEach(t=>{const s=(t.status||'').trim(); if(s)set.set(s.toLowerCase(),s);});
+  Object.keys(STATUSMAP).forEach(lc=>{ if(!set.has(lc)) set.set(lc,lc); });
+  const names=[...set.values()].sort((a,b)=>a.localeCompare(b));
+  const opt=cur=>['auto','active','done','todo'].map(v=>`<option value="${v}"${v===cur?' selected':''}>${CAT_LABEL[v]}</option>`).join('');
+  const panel=document.createElement('div'); panel.className='catpanel';
+  panel.innerHTML='<h4>Status categories</h4><div class="hint">How each JIRA status is grouped. “In progress” statuses show in the default view; Done & To do are hidden there. Shared across the workspace.</div>'
+    +(names.length?names.map(nm=>{const lc=nm.toLowerCase(),ov=!!STATUSMAP[lc],cat=statusCat(nm);
+       return `<div class="catrow"><span class="cs"><span class="dot ${catDotClass(cat)}"></span><span class="nm">${esc(nm)}</span>${ov?'<span class="ov">set</span>':''}</span><select data-st="${esc(nm)}">${opt(ov?STATUSMAP[lc]:'auto')}</select></div>`;
+      }).join(''):'<div class="hint">No statuses seen yet — open a board with issues.</div>');
+  document.body.appendChild(panel);
+  const bb=$('#statuscfg').getBoundingClientRect();
+  panel.style.left=Math.max(8,Math.min(bb.left-300,window.innerWidth-348))+'px';
+  panel.style.top=(bb.bottom+6)+'px';
+  panel.querySelectorAll('select').forEach(sel=>sel.addEventListener('change',async()=>{
+    const r=await api('/status-map',{method:'POST',body:JSON.stringify({status:sel.dataset.st,category:sel.value})});
+    if(!r.ok){alert('Failed: '+await r.text());return;}
+    const m=await r.json(); STATUSMAP={}; for(const k in m) STATUSMAP[(k||'').toLowerCase().trim()]=m[k];
+    syncStatusFilter(); renderStream();
+    const row=sel.closest('.catrow'), nm=sel.dataset.st, cat=statusCat(nm);
+    row.querySelector('.dot').className='dot '+catDotClass(cat);
+    const cs=row.querySelector('.cs'); let ov=cs.querySelector('.ov'); const isOv=!!STATUSMAP[nm.toLowerCase()];
+    if(isOv&&!ov){ov=document.createElement('span');ov.className='ov';ov.textContent='set';cs.appendChild(ov);} else if(!isOv&&ov){ov.remove();}
+  }));
+  setTimeout(()=>document.addEventListener('click',function off(e){ if(!panel.contains(e.target)&&!e.target.closest('#statuscfg')){panel.remove();document.removeEventListener('click',off);} }),0);
+}
+$('#statuscfg').addEventListener('click',openCatPanel);
 
 // --- views: Updates (the board river) | Threads | Activity (both workspace-wide) ---
 let VIEW='updates';

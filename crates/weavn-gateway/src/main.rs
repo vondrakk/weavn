@@ -254,6 +254,7 @@ async fn main() {
         .route("/refine", post(refine))
         .route("/read", get(read))
         .route("/threads", get(threads_feed))
+        .route("/status-map", get(status_map_get).post(status_map_set))
         .route("/export", get(export))
         .route("/discover", get(discover))
         .route("/users", get(users))
@@ -1131,6 +1132,45 @@ fn one_line(body: &str, max: usize) -> String {
     } else {
         flat
     }
+}
+
+/// Per-workspace overrides mapping a JIRA status NAME to a category
+/// ("done" | "active" | "todo"). Stored as one JSON object in `config`; the client
+/// falls back to a keyword heuristic for any status with no override. Shared across
+/// the workspace so everyone sees the same "In progress" grouping.
+async fn status_map_get(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<serde_json::Value>, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    let raw = weavn_store::config_get(&s.pool, &ws, "status_categories").await.map_err(db_err)?;
+    let v = raw.and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok()).unwrap_or_else(|| serde_json::json!({}));
+    Ok(Json(v))
+}
+
+#[derive(Deserialize)]
+struct StatusMapReq {
+    status: String,
+    /// "done" | "active" | "todo" to set, anything else (e.g. "auto") clears it.
+    category: String,
+}
+
+async fn status_map_set(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<StatusMapReq>) -> Result<Json<serde_json::Value>, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    let status = r.status.trim().to_string();
+    if status.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "status required".to_string()));
+    }
+    let cat = r.category.trim().to_lowercase();
+    let raw = weavn_store::config_get(&s.pool, &ws, "status_categories").await.map_err(db_err)?;
+    let mut map: serde_json::Map<String, serde_json::Value> =
+        raw.and_then(|r| serde_json::from_str(&r).ok()).unwrap_or_default();
+    // Drop any existing entry that matches case-insensitively, then re-add.
+    let key_lc = status.to_lowercase();
+    map.retain(|k, _| k.to_lowercase() != key_lc);
+    if matches!(cat.as_str(), "done" | "active" | "todo") {
+        map.insert(status, serde_json::Value::String(cat));
+    } // else: "auto"/unknown → leave removed (revert to the heuristic)
+    let out = serde_json::Value::Object(map);
+    weavn_store::config_set(&s.pool, &ws, "status_categories", &out.to_string()).await.map_err(db_err)?;
+    Ok(Json(out))
 }
 
 /// Workspace-wide "Threads" feed: every conversation that has replies, across all
