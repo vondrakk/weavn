@@ -248,6 +248,39 @@
   .fitem .flast b{font-weight:600}
   .fitem .frep{color:var(--thread);font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;margin-top:4px}
   .feedempty{color:var(--faint);text-align:center;padding:48px 20px}
+  /* mode toggle: Channels | Browse */
+  .modeseg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-left:6px}
+  .modeseg button{border:0;background:var(--bg);color:var(--muted);font:inherit;font-size:12px;font-weight:600;padding:5px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .modeseg button.on{background:var(--accent);color:#fff}
+  /* Browse: Projects → Epics → Stories&Tasks Miller columns + conversation */
+  .browse{display:flex;min-height:0;height:100%;overflow:hidden}
+  .browse.hidden{display:none}
+  .bcol{display:flex;flex-direction:column;min-height:0;width:270px;flex:none;border-right:1px solid var(--border);background:var(--rail);overflow:hidden}
+  .bcol.collapsed{width:40px}
+  .bhead{display:flex;align-items:center;gap:7px;padding:11px 10px;border-bottom:1px solid var(--border);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap}
+  .bhead .btitle{flex:1;overflow:hidden;text-overflow:ellipsis}
+  .bhead .bcollapse{border:0;background:transparent;color:var(--faint);cursor:pointer;padding:0;line-height:0}
+  .bhead .bcollapse:hover{color:var(--accent)}
+  .bcol.collapsed .bhead{flex-direction:column;cursor:pointer;height:100%;justify-content:flex-start;padding:12px 0;gap:12px}
+  .bcol.collapsed .btitle{writing-mode:vertical-rl;transform:rotate(180deg);flex:none}
+  .bcol.collapsed .blist{display:none}
+  .blist{flex:1;overflow:auto;padding:5px}
+  .brow{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;cursor:pointer;color:var(--rail-fg);font-size:13px}
+  .brow:hover,.brow.active{background:var(--accent-weak)}
+  .brow.active .bnm{color:var(--accent);font-weight:600}
+  .brow .bnm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .brow .bk{font-family:var(--mono);font-size:10px;color:var(--rail-muted)}
+  .brow .bchev{color:var(--faint);font-size:16px;flex:none}
+  .bpmuted{color:var(--rail-muted);font-size:12px;padding:8px 10px}
+  .bconvo{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--surface)}
+  .bchead{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .bchead .bctitle{font-weight:700;font-size:15px}
+  .bcbody{flex:1;overflow:auto;padding:14px 18px}
+  .bcompose{border-top:1px solid var(--border);padding:12px 16px}
+  .bcompose form{display:flex;gap:8px}
+  .bcompose input{flex:1;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font:inherit;font-size:14px;background:var(--bg);color:var(--fg);outline:none}
+  .bcompose button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:0 18px;font:inherit;font-weight:600;cursor:pointer}
+  .bcempty{color:var(--faint);text-align:center;padding:52px 20px}
   /* quick switcher */
   .ovl{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:start center;padding-top:14vh;z-index:10}
   .sw{width:100%;max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -403,6 +436,7 @@
   <div class="top">
     <svg width="20" height="20" viewBox="0 0 120 120" fill="none" aria-label="weavN"><defs><linearGradient id="wmA2" x1="18" y1="92" x2="74" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B1B7D"/><stop offset="1" stop-color="#4F46E5"/></linearGradient><linearGradient id="wmB2" x1="50" y1="38" x2="100" y2="90" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4F46E5"/><stop offset="1" stop-color="#06B6D4"/></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="15"><path d="M24 32 L48 90 L70 38" stroke="url(#wmA2)"/><path d="M50 38 L72 90 L96 32" stroke="url(#wmB2)"/></g></svg>
     <span class="nm wm">weav<span class="n">N</span></span>
+    <div class="modeseg" id="modeseg"><button data-m="channels" class="on"><span class="mi">forum</span> Channels</button><button data-m="browse"><span class="mi">account_tree</span> Browse</button></div>
     <a class="kk" id="dash" target="_blank" rel="noopener" href="#">Dashboards ↗</a>
     <span class="pres" id="pres" title="People here now"></span>
     <span class="pres" id="onclock" title="On the clock"></span>
@@ -494,6 +528,21 @@
         </form>
       </div>
     </aside>
+  </div>
+  <div class="browse hidden" id="browse">
+    <div class="bcol" data-col="projects">
+      <div class="bhead"><button class="bcollapse" title="Collapse"><span class="mi">chevron_left</span></button><span class="btitle">Projects</span></div>
+      <div class="blist" id="bprojects"></div>
+    </div>
+    <div class="bcol" data-col="epics">
+      <div class="bhead"><button class="bcollapse" title="Collapse"><span class="mi">chevron_left</span></button><span class="btitle">Epics</span></div>
+      <div class="blist" id="bepics"><div class="bpmuted">Pick a project →</div></div>
+    </div>
+    <div class="bcol" data-col="stories">
+      <div class="bhead"><button class="bcollapse" title="Collapse"><span class="mi">chevron_left</span></button><span class="btitle">Stories &amp; Tasks</span></div>
+      <div class="blist" id="bstories"><div class="bpmuted">Pick an epic →</div></div>
+    </div>
+    <div class="bconvo" id="bconvo"><div class="bcempty">Pick a project, then an epic, then a story or task to open its conversation.</div></div>
   </div>
   <div class="chanlist" id="chanlist"></div>
 </section>
@@ -592,8 +641,9 @@ async function showApp(sess){
   $('#who').textContent=MENAME;
   $('#meav').textContent=initials(MENAME);
   renderUsage(USAGE);
-  await loadSaved(); loadState(); await loadStatusMap(); applyDensity();
+  await loadSaved(); loadState(); await loadStatusMap(); applyDensity(); wireBrowse();
   renderSidebar(); connectWS(); loadAvailability(); loadNotifications();
+  try{ if(localStorage.getItem('weavn-mode')==='browse') setMode('browse'); }catch(e){}
 }
 let NOTIFS={unread:0,items:[]};
 function renderBell(n){
@@ -990,6 +1040,80 @@ function setupResizers(){
   };
   const rs=$('#rs-side'); if(rs) rs.addEventListener('pointerdown',e=>start('side',e));
   const rt=$('#rs-thread'); if(rt) rt.addEventListener('pointerdown',e=>start('thread',e));
+}
+
+// --- Browse mode: Projects → Epics → Stories/Tasks drill-down (live JIRA) -------
+let BMODE='channels', BPROJ=null, BEPIC=null, BISSUE=null, BCOLLAPSE={projects:false,epics:false,stories:false};
+function setMode(m){
+  BMODE=m;
+  $('#browse').classList.toggle('hidden',m!=='browse');
+  $('.main').classList.toggle('hidden',m==='browse');
+  document.querySelectorAll('#modeseg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  try{localStorage.setItem('weavn-mode',m);}catch(e){}
+  if(m==='browse') loadBProjects();
+}
+function wireBrowse(){
+  document.querySelectorAll('#modeseg button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.m)));
+  try{const v=localStorage.getItem('weavn-bcollapse'); if(v)BCOLLAPSE=JSON.parse(v);}catch(e){}
+  document.querySelectorAll('#browse .bcol').forEach(col=>{
+    const key=col.dataset.col;
+    col.classList.toggle('collapsed',!!BCOLLAPSE[key]);
+    const toggle=()=>{ BCOLLAPSE[key]=!BCOLLAPSE[key]; col.classList.toggle('collapsed',BCOLLAPSE[key]); try{localStorage.setItem('weavn-bcollapse',JSON.stringify(BCOLLAPSE));}catch(e){} };
+    col.querySelector('.bcollapse').addEventListener('click',e=>{e.stopPropagation();toggle();});
+    col.querySelector('.bhead').addEventListener('click',()=>{ if(col.classList.contains('collapsed')) toggle(); });
+  });
+}
+async function loadBProjects(){
+  await ensureProjects();
+  const el=$('#bprojects');
+  if(!PROJECTS.length){el.innerHTML='<div class="bpmuted">No projects visible to your account.</div>';return;}
+  el.innerHTML=PROJECTS.slice().sort((a,b)=>(a.name||a.key).localeCompare(b.name||b.key)).map(p=>`<div class="brow${p.key===BPROJ?' active':''}" data-k="${esc(p.key)}" title="${esc(p.key)}"><span class="bnm">${esc(p.name||p.key)}</span><span class="bk">${esc(p.key)}</span><span class="mi bchev">chevron_right</span></div>`).join('');
+  el.querySelectorAll('.brow').forEach(r=>r.addEventListener('click',()=>selectBProject(r.dataset.k)));
+}
+async function selectBProject(key){
+  BPROJ=key; BEPIC=null;
+  $('#bprojects').querySelectorAll('.brow').forEach(r=>r.classList.toggle('active',r.dataset.k===key));
+  $('#bstories').innerHTML='<div class="bpmuted">Pick an epic →</div>';
+  const el=$('#bepics'); el.innerHTML='<div class="bpmuted"><span class="spin"></span>Loading epics…</div>';
+  let rows=[]; try{const r=await api('/epics?project='+encodeURIComponent(key)); if(!r.ok){el.innerHTML='<div class="bpmuted">'+esc(await r.text())+'</div>';return;} rows=await r.json();}catch(e){el.innerHTML='<div class="bpmuted">Network error.</div>';return;}
+  if(!rows.length){el.innerHTML='<div class="bpmuted">No epics in this project.</div>';return;}
+  el.innerHTML=rows.map(ep=>`<div class="brow" data-k="${esc(ep.key)}" title="${esc(ep.summary)}"><span class="bnm">${esc(ep.summary||ep.key)}</span><span class="bk">${esc(ep.key)}</span><span class="mi bchev">chevron_right</span></div>`).join('');
+  el.querySelectorAll('.brow').forEach(r=>r.addEventListener('click',()=>selectBEpic(r.dataset.k)));
+}
+async function selectBEpic(key){
+  BEPIC=key;
+  $('#bepics').querySelectorAll('.brow').forEach(r=>r.classList.toggle('active',r.dataset.k===key));
+  const el=$('#bstories'); el.innerHTML='<div class="bpmuted"><span class="spin"></span>Loading…</div>';
+  let rows=[]; try{const r=await api('/children?parent='+encodeURIComponent(key)); if(!r.ok){el.innerHTML='<div class="bpmuted">'+esc(await r.text())+'</div>';return;} rows=await r.json();}catch(e){el.innerHTML='<div class="bpmuted">Network error.</div>';return;}
+  if(!rows.length){el.innerHTML='<div class="bpmuted">No stories or tasks under this epic.</div>';return;}
+  el.innerHTML=rows.map(c=>`<div class="brow" data-k="${esc(c.key)}" title="${esc(c.summary)}">${typeChip(c.issue_type)}<span class="bnm">${esc(c.summary||c.key)}</span><span class="bk">${esc(c.key)}</span></div>`).join('');
+  el.querySelectorAll('.brow').forEach(r=>r.addEventListener('click',()=>openBIssue(r.dataset.k)));
+}
+async function openBIssue(key){
+  BISSUE=key;
+  $('#bstories').querySelectorAll('.brow').forEach(r=>r.classList.toggle('active',r.dataset.k===key));
+  const el=$('#bconvo'); el.innerHTML='<div class="bcempty"><span class="spin"></span>Loading '+esc(key)+'…</div>';
+  let d; try{const r=await api('/issue?key='+encodeURIComponent(key)); if(!r.ok){el.innerHTML='<div class="bcempty">'+esc(await r.text())+'</div>';return;} d=await r.json();}catch(e){el.innerHTML='<div class="bcempty">Network error.</div>';return;}
+  renderBConvo(d);
+}
+function renderBConvo(d){
+  const k=esc(d.issue_key);
+  const title=esc((d.lines[0]||'').split('\n')[0]);
+  const epic=d.parent?`<a class="m-epic" href="${esc(permalink(d.parent))}" target="_blank" rel="noopener">↳ ${esc(d.parent)}${d.parent_summary?' '+esc(d.parent_summary):''}</a>`:'';
+  const head=`<div class="bchead">${typeChip(d.issue_type)}<span class="bctitle">${title}</span>${d.status?`<button class="sdot ${statusClass(d.status)}" data-issue="${k}" title="Change status"><span class="dot"></span>${esc(d.status)}</button>`:''}${epic}<a class="m-key" href="${esc(permalink(d.issue_key))}" target="_blank" rel="noopener">${k}</a></div>`;
+  const root=`<article class="msg troot"><div class="m-gut"><div class="av">${esc(initials(d.author))}</div></div><div class="m-main"><div class="m-head"><span class="m-who" style="color:${authorColor(d.author)}">${esc(d.author)}</span><span class="m-time">${esc(fmtTime(d.ts))}</span></div><div class="lines">${renderMd(d.lines.join('\n'))}</div></div></article>`;
+  const reps=(d.replies||[]).length?d.replies.map(x=>`<div class="rep"><div class="rhead"><span class="ra" style="color:${authorColor(x.author)}">${esc(x.author)}</span>${x.from_jira?'<span class="fj">FROM JIRA</span>':''}<span class="rtime">${esc(fmtTime(x.ts))}</span></div><div class="rbody">${mdInline(esc(x.body))}</div></div>`).join(''):'<div class="bpmuted">No comments yet — start the conversation below.</div>';
+  $('#bconvo').innerHTML=head+`<div class="bcbody">${root}${reps}</div><div class="bcompose"><form id="bcform"><input id="bcinput" placeholder="Message ${k} — posts a JIRA comment" autocomplete="off"><button type="submit">Send</button></form></div>`;
+  const sd=$('#bconvo .sdot'); if(sd) sd.addEventListener('click',e=>{e.stopPropagation();openStatusMenu(sd,d.issue_key);});
+  const body=$('#bconvo .bcbody'); body.scrollTop=body.scrollHeight;
+  $('#bcform').addEventListener('submit',async e=>{
+    e.preventDefault(); const v=$('#bcinput').value.trim(); if(!v)return;
+    const btn=e.target.querySelector('button'); btn.disabled=true;
+    const r=await api('/issue/comment',{method:'POST',body:JSON.stringify({key:d.issue_key,body:v})});
+    btn.disabled=false;
+    if(!r.ok){alert('Failed: '+await r.text());return;}
+    $('#bcinput').value=''; openBIssue(d.issue_key);
+  });
 }
 
 // --- views: Updates (the board river) | Threads | Activity (both workspace-wide) ---

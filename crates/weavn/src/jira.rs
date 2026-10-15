@@ -484,6 +484,35 @@ pub mod real {
         pub comments: Vec<(String, String, String)>,
     }
 
+    /// An epic in the Projects→Epics→Stories browser.
+    pub struct EpicRef {
+        pub key: String,
+        pub summary: String,
+        pub status: String,
+    }
+
+    /// A child issue (story/task/sub-task) under an epic.
+    pub struct ChildRef {
+        pub key: String,
+        pub summary: String,
+        pub issue_type: String,
+        pub status: String,
+    }
+
+    /// One issue rendered as a conversation (its description + comments).
+    pub struct IssueDetail {
+        pub key: String,
+        pub summary: String,
+        pub description: String,
+        pub status: String,
+        pub issue_type: String,
+        pub parent_key: String,
+        pub parent_summary: String,
+        pub author: String,
+        pub created: String,
+        pub comments: Vec<(String, String, String)>,
+    }
+
     /// Flatten an ADF document to plain text (one line per block). Superseded by
     /// `crate::format::adf_to_mrkdwn` for backfill, but kept as a plain-text helper.
     #[allow(dead_code)]
@@ -628,6 +657,97 @@ pub mod real {
                         .collect()
                 })
                 .unwrap_or_default())
+        }
+
+        /// Read-only helper: run a JQL search and return the raw `issues` array.
+        fn search(&self, jql: &str, fields: &str, max: u32) -> Result<Vec<Value>, String> {
+            let mr = max.to_string();
+            let resp = self
+                .http
+                .get(format!("{}/rest/api/3/search/jql", self.base))
+                .header("Authorization", &self.auth_header)
+                .query(&[("jql", jql), ("maxResults", mr.as_str()), ("fields", fields)])
+                .send()
+                .map_err(|e| e.to_string())?;
+            let status = resp.status();
+            let v: Value = resp.json().map_err(|e| e.to_string())?;
+            if !status.is_success() {
+                return Err(format!("search {status}: {v}"));
+            }
+            Ok(v["issues"].as_array().cloned().unwrap_or_default())
+        }
+
+        /// Read-only: epics in a project, most recently updated first.
+        pub fn list_epics(&self, project: &str) -> Result<Vec<EpicRef>, String> {
+            let jql = format!("project = \"{project}\" AND issuetype = Epic ORDER BY updated DESC");
+            Ok(self
+                .search(&jql, "summary,status", 200)?
+                .iter()
+                .map(|i| EpicRef {
+                    key: i["key"].as_str().unwrap_or("").to_string(),
+                    summary: i["fields"]["summary"].as_str().unwrap_or("").to_string(),
+                    status: i["fields"]["status"]["name"].as_str().unwrap_or("").to_string(),
+                })
+                .collect())
+        }
+
+        /// Read-only: the children (stories/tasks/sub-tasks) under an issue (epic),
+        /// oldest first.
+        pub fn list_children(&self, parent: &str) -> Result<Vec<ChildRef>, String> {
+            let jql = format!("parent = \"{parent}\" ORDER BY created ASC");
+            Ok(self
+                .search(&jql, "summary,issuetype,status", 300)?
+                .iter()
+                .map(|i| ChildRef {
+                    key: i["key"].as_str().unwrap_or("").to_string(),
+                    summary: i["fields"]["summary"].as_str().unwrap_or("").to_string(),
+                    issue_type: i["fields"]["issuetype"]["name"].as_str().unwrap_or("").to_string(),
+                    status: i["fields"]["status"]["name"].as_str().unwrap_or("").to_string(),
+                })
+                .collect())
+        }
+
+        /// Read-only: one issue's full content as a conversation (description + comments).
+        pub fn fetch_issue(&self, key: &str) -> Result<IssueDetail, String> {
+            let resp = self
+                .http
+                .get(format!("{}/rest/api/3/issue/{key}", self.base))
+                .header("Authorization", &self.auth_header)
+                .query(&[("fields", "summary,description,status,issuetype,parent,comment,created,reporter")])
+                .send()
+                .map_err(|e| e.to_string())?;
+            let status = resp.status();
+            let v: Value = resp.json().map_err(|e| e.to_string())?;
+            if !status.is_success() {
+                return Err(format!("issue {key} {status}: {v}"));
+            }
+            let f = &v["fields"];
+            let comments = f["comment"]["comments"]
+                .as_array()
+                .map(|cs| {
+                    cs.iter()
+                        .map(|c| {
+                            (
+                                c["author"]["displayName"].as_str().unwrap_or("?").to_string(),
+                                crate::format::adf_to_mrkdwn(&c["body"]),
+                                c["created"].as_str().unwrap_or("").to_string(),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            Ok(IssueDetail {
+                key: v["key"].as_str().unwrap_or(key).to_string(),
+                summary: f["summary"].as_str().unwrap_or("").to_string(),
+                description: if f["description"].is_null() { String::new() } else { crate::format::adf_to_mrkdwn(&f["description"]) },
+                status: f["status"]["name"].as_str().unwrap_or("").to_string(),
+                issue_type: f["issuetype"]["name"].as_str().unwrap_or("").to_string(),
+                parent_key: f["parent"]["key"].as_str().unwrap_or("").to_string(),
+                parent_summary: f["parent"]["fields"]["summary"].as_str().unwrap_or("").to_string(),
+                author: f["reporter"]["displayName"].as_str().unwrap_or("JIRA").to_string(),
+                created: f["created"].as_str().unwrap_or("").to_string(),
+                comments,
+            })
         }
 
         /// Upload a file as a JIRA attachment on an issue. Returns

@@ -254,6 +254,10 @@ async fn main() {
         .route("/refine", post(refine))
         .route("/read", get(read))
         .route("/threads", get(threads_feed))
+        .route("/epics", get(epics))
+        .route("/children", get(children))
+        .route("/issue", get(issue_detail))
+        .route("/issue/comment", post(issue_comment))
         .route("/status-map", get(status_map_get).post(status_map_set))
         .route("/sidebar", get(sidebar_get).post(sidebar_set))
         .route("/export", get(export))
@@ -1146,6 +1150,115 @@ fn one_line(body: &str, max: usize) -> String {
     } else {
         flat
     }
+}
+
+// --- Browse: Projects → Epics → Stories/Tasks (live JIRA drill-down) ----------
+
+#[derive(Deserialize)]
+struct ProjQuery {
+    project: String,
+}
+#[derive(Serialize)]
+struct EpicItem {
+    key: String,
+    summary: String,
+    status: String,
+}
+async fn epics(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ProjQuery>) -> Result<Json<Vec<EpicItem>>, ApiError> {
+    let (creds, _author, _ws) = jira_session(&s, &headers)?;
+    let proj = q.project.clone();
+    let rows = blocking(move || {
+        RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).list_epics(&proj)
+    })
+    .await?;
+    Ok(Json(rows.into_iter().map(|e| EpicItem { key: e.key, summary: e.summary, status: e.status }).collect()))
+}
+
+#[derive(Deserialize)]
+struct ParentQuery {
+    parent: String,
+}
+#[derive(Serialize)]
+struct ChildItem {
+    key: String,
+    summary: String,
+    issue_type: String,
+    status: String,
+}
+async fn children(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ParentQuery>) -> Result<Json<Vec<ChildItem>>, ApiError> {
+    let (creds, _author, _ws) = jira_session(&s, &headers)?;
+    let parent = q.parent.clone();
+    let rows = blocking(move || {
+        RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).list_children(&parent)
+    })
+    .await?;
+    Ok(Json(rows.into_iter().map(|c| ChildItem { key: c.key, summary: c.summary, issue_type: c.issue_type, status: c.status }).collect()))
+}
+
+#[derive(Deserialize)]
+struct IssueQuery {
+    key: String,
+}
+/// One issue as a conversation (its description + comments), shaped like a thread.
+#[derive(Serialize)]
+struct IssueConvo {
+    issue_key: String,
+    author: String,
+    ts: i64,
+    status: String,
+    issue_type: String,
+    parent: Option<String>,
+    parent_summary: Option<String>,
+    lines: Vec<String>,
+    replies: Vec<ReplyResp>,
+}
+async fn issue_detail(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<IssueQuery>) -> Result<Json<IssueConvo>, ApiError> {
+    let (creds, _author, _ws) = jira_session(&s, &headers)?;
+    let key = q.key.clone();
+    let d = blocking(move || {
+        RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).fetch_issue(&key)
+    })
+    .await?;
+    let ts = parse_jira_ts(&d.created).unwrap_or_else(unix_now);
+    let lines = if d.description.is_empty() { vec![d.summary.clone()] } else { vec![format!("{}\n{}", d.summary, d.description)] };
+    let replies = d
+        .comments
+        .into_iter()
+        .map(|(author, body, cts)| ReplyResp { author, body, from_jira: true, broadcast: false, ts: parse_jira_ts(&cts).unwrap_or(ts) })
+        .collect();
+    Ok(Json(IssueConvo {
+        issue_key: d.key,
+        author: d.author,
+        ts,
+        status: d.status,
+        issue_type: d.issue_type,
+        parent: (!d.parent_key.is_empty()).then_some(d.parent_key),
+        parent_summary: (!d.parent_summary.is_empty()).then_some(d.parent_summary),
+        lines,
+        replies,
+    }))
+}
+
+#[derive(Deserialize)]
+struct IssueCommentReq {
+    key: String,
+    body: String,
+}
+/// Post a comment directly to a JIRA issue (used by Browse, which reads live from
+/// JIRA and so doesn't require the issue to be in a weavn channel/projection).
+async fn issue_comment(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<IssueCommentReq>) -> Result<Json<serde_json::Value>, ApiError> {
+    let (creds, author, _ws) = jira_session(&s, &headers)?;
+    if r.body.trim().is_empty() {
+        return Err(bad_request("empty comment".to_string()));
+    }
+    let (c, key, auth, body) = (creds.clone(), r.key.clone(), author.clone(), r.body.clone());
+    let id = blocking(move || {
+        let mut b = RealBackend::from_parts(&c.base, c.email.as_deref(), &c.token, c.bearer);
+        let adf = weavn::format::mrkdwn_to_adf(&body);
+        b.add_comment(&key, &auth, &body, &adf).map(|cm| cm.id)
+    })
+    .await?;
+    Ok(Json(serde_json::json!({ "id": id })))
 }
 
 /// A user's personal sidebar layout (custom sections + channel ordering). Opaque
