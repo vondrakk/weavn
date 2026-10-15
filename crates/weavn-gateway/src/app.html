@@ -1367,25 +1367,46 @@ function currentIssueKey(){ return TREEISSUE?TREEISSUE.issue_key:(CURTHREAD||nul
 function currentIssueStatus(){ if(TREEISSUE)return TREEISSUE.status||''; const t=THREADS.find(x=>x.issue_key===CURTHREAD); return t?t.status||'':''; }
 async function wbTransitions(key){ if(WB_TR_CACHE[key])return WB_TR_CACHE[key]; try{const r=await api('/transitions?issue='+encodeURIComponent(key)); if(r.ok){const v=await r.json();WB_TR_CACHE[key]=v;return v;}}catch(e){} return []; }
 function hideSuggest(){ WB_SUGGEST=null; const s=$('#suggest'); if(s)s.classList.add('hidden'); }
-async function wbMaybeSuggest(text){
-  const key=currentIssueKey(); if(!key){ hideSuggest(); return; }
-  const intent=wbDetect(text); if(!intent){ hideSuggest(); return; }
-  const target=(await wbTransitions(key)).find(t=>intent.want.test(t));
-  if(!target || (currentIssueStatus()||'').toLowerCase()===target.toLowerCase()){ hideSuggest(); return; }
-  WB_SUGGEST={key,target};
-  $('#suggest').innerHTML=`<span class="mi si-mi">bolt</span><span class="si-txt">Move <b>${esc(key)}</b> to <b>${esc(target)}</b>?</span><button class="si-go" type="button">Confirm &amp; reply</button><button class="si-no" type="button">Dismiss</button>`;
+const WB_ASSIGN=/\b(assign (to )?me|assign me|i'?ll (take|own|grab|handle|do) (this|it)|i'?ve got (this|it)|i can take (this|it)|let me take (this|it))\b/i;
+function showSuggestChip(html){
+  $('#suggest').innerHTML=`<span class="mi si-mi">bolt</span><span class="si-txt">${html}</span><button class="si-go" type="button">Confirm &amp; reply</button><button class="si-no" type="button">Dismiss</button>`;
   $('#suggest').classList.remove('hidden');
   $('#suggest .si-go').onclick=wbConfirm; $('#suggest .si-no').onclick=hideSuggest;
 }
+async function wbMaybeSuggest(text){
+  const key=currentIssueKey(); if(!key){ hideSuggest(); return; }
+  // 1) assignment intent — "I'll take this" → assign to me
+  if(WB_ASSIGN.test(text)){
+    const mine = TREEISSUE && MEID && TREEISSUE.assignee_id===MEID;
+    if(!mine){ WB_SUGGEST={key,kind:'assign',prev:(TREEISSUE&&TREEISSUE.assignee_id)||''}; showSuggestChip(`Assign <b>${esc(key)}</b> to you?`); return; }
+  }
+  // 2) transition intent — "shipped it" → Done
+  const intent=wbDetect(text); if(!intent){ hideSuggest(); return; }
+  const target=(await wbTransitions(key)).find(t=>intent.want.test(t));
+  if(!target || (currentIssueStatus()||'').toLowerCase()===target.toLowerCase()){ hideSuggest(); return; }
+  WB_SUGGEST={key,kind:'transition',target};
+  showSuggestChip(`Move <b>${esc(key)}</b> to <b>${esc(target)}</b>?`);
+}
 async function wbConfirm(){
-  if(!WB_SUGGEST)return; const {key,target}=WB_SUGGEST, prev=currentIssueStatus(); hideSuggest();
+  if(!WB_SUGGEST)return; const sug=WB_SUGGEST, key=sug.key, prev=currentIssueStatus(); hideSuggest();
   const body=$('#threadinput').value.trim();
   if(body){ if(TREEISSUE){await api('/issue/comment',{method:'POST',body:JSON.stringify({key,body})});} else {await api('/reply',{method:'POST',body:JSON.stringify({issue:key,body,broadcast:false})});} $('#threadinput').value=''; }
-  const r=await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:target})});
+  if(sug.kind==='assign'){
+    const r=await api('/assign',{method:'POST',body:JSON.stringify({issue:key})});
+    if(!r.ok){ alert('Assign failed: '+await r.text()); return; }
+    if(TREEISSUE) openTreeIssue(key); else loadChannel();
+    wbToast(`Assigned ${key} to you`, ()=>wbUnassign(key,sug.prev));
+    return;
+  }
+  const r=await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:sug.target})});
   WB_TR_CACHE[key]=null; // transitions change after a move
   if(!r.ok){ alert('Transition failed: '+await r.text()); return; }
   if(TREEISSUE) openTreeIssue(key); else loadChannel();
-  wbToast(`Moved ${key} to ${target}`, prev?()=>wbUndo(key,prev):null);
+  wbToast(`Moved ${key} to ${sug.target}`, prev?()=>wbUndo(key,prev):null);
+}
+async function wbUnassign(key,prevId){ // undo assign → restore the previous assignee (or unassign)
+  await api('/assign',{method:'POST',body:JSON.stringify({issue:key,account:prevId||''})});
+  if(TREEISSUE&&TREEISSUE.issue_key===key) openTreeIssue(key); else loadChannel();
 }
 async function wbUndo(key,prev){
   WB_TR_CACHE[key]=null; const back=(await wbTransitions(key)).find(t=>t.toLowerCase()===prev.toLowerCase());

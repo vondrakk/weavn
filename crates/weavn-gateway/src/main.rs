@@ -251,6 +251,7 @@ async fn main() {
         .route("/pin", post(pin))
         .route("/transitions", get(transitions))
         .route("/transition", post(transition))
+        .route("/assign", post(assign))
         .route("/refine", post(refine))
         .route("/read", get(read))
         .route("/threads", get(threads_feed))
@@ -1044,6 +1045,26 @@ async fn transition(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<T
     Ok(Json(StatusResp { issue: r.issue, status }))
 }
 
+#[derive(Deserialize)]
+struct AssignReq {
+    issue: String,
+    /// JIRA accountId to assign to; empty/omitted = the current user ("me").
+    #[serde(default)]
+    account: Option<String>,
+}
+/// Assign an issue, defaulting to the signed-in user ("assign to me").
+async fn assign(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<AssignReq>) -> Result<Json<serde_json::Value>, ApiError> {
+    let sess = session(&s, &headers)?;
+    let creds = sess.jira.clone().ok_or((StatusCode::UNAUTHORIZED, "JIRA login required".to_string()))?;
+    let account = r.account.filter(|a| !a.trim().is_empty()).unwrap_or_else(|| sess.subject.clone());
+    let (c, issue2, acc2) = (creds.clone(), r.issue.clone(), account.clone());
+    blocking(move || {
+        RealBackend::from_parts(&c.base, c.email.as_deref(), &c.token, c.bearer).assign(&issue2, &acc2)
+    })
+    .await?;
+    Ok(Json(serde_json::json!({ "issue": r.issue, "assignee": account })))
+}
+
 async fn refine(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<RefineReq>) -> Result<Json<Vec<String>>, ApiError> {
     let (creds, _author, _ws) = jira_session(&s, &headers)?;
     let update = weavn::slash::parse(&r.commands).map_err(bad_request)?;
@@ -1254,6 +1275,8 @@ struct IssueConvo {
     issue_type: String,
     parent: Option<String>,
     parent_summary: Option<String>,
+    assignee: String,
+    assignee_id: String,
     lines: Vec<String>,
     replies: Vec<ReplyResp>,
 }
@@ -1279,6 +1302,8 @@ async fn issue_detail(State(s): State<Shared>, headers: HeaderMap, Query(q): Que
         issue_type: d.issue_type,
         parent: (!d.parent_key.is_empty()).then_some(d.parent_key),
         parent_summary: (!d.parent_summary.is_empty()).then_some(d.parent_summary),
+        assignee: d.assignee,
+        assignee_id: d.assignee_id,
         lines,
         replies,
     }))

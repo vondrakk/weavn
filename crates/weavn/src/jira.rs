@@ -412,6 +412,28 @@ pub mod real {
             self.apply_transition(key, target)
         }
 
+        /// Assign an issue to a JIRA accountId (empty string → unassign).
+        pub fn assign(&self, key: &str, account_id: &str) -> Result<(), String> {
+            let body = if account_id.is_empty() {
+                json!({ "accountId": Value::Null })
+            } else {
+                json!({ "accountId": account_id })
+            };
+            let resp = self
+                .http
+                .put(format!("{}/rest/api/3/issue/{key}/assignee", self.base))
+                .header("Authorization", &self.auth_header)
+                .json(&body)
+                .send()
+                .map_err(|e| e.to_string())?;
+            if !resp.status().is_success() {
+                let st = resp.status();
+                let t = resp.text().unwrap_or_default();
+                return Err(format!("assign failed {st}: {t}"));
+            }
+            Ok(())
+        }
+
         /// Active + future sprints on a project's (first) scrum board: (id, state, name).
         pub fn list_sprints(&self, project: &str) -> Result<Vec<(i64, String, String)>, String> {
             let b = self
@@ -510,6 +532,8 @@ pub mod real {
         pub parent_summary: String,
         pub author: String,
         pub created: String,
+        pub assignee: String,
+        pub assignee_id: String,
         pub comments: Vec<(String, String, String)>,
     }
 
@@ -713,7 +737,7 @@ pub mod real {
                 .http
                 .get(format!("{}/rest/api/3/issue/{key}", self.base))
                 .header("Authorization", &self.auth_header)
-                .query(&[("fields", "summary,description,status,issuetype,parent,comment,created,reporter")])
+                .query(&[("fields", "summary,description,status,issuetype,parent,comment,created,reporter,assignee")])
                 .send()
                 .map_err(|e| e.to_string())?;
             let status = resp.status();
@@ -746,6 +770,8 @@ pub mod real {
                 parent_summary: f["parent"]["fields"]["summary"].as_str().unwrap_or("").to_string(),
                 author: f["reporter"]["displayName"].as_str().unwrap_or("JIRA").to_string(),
                 created: f["created"].as_str().unwrap_or("").to_string(),
+                assignee: f["assignee"]["displayName"].as_str().unwrap_or("").to_string(),
+                assignee_id: f["assignee"]["accountId"].as_str().unwrap_or("").to_string(),
                 comments,
             })
         }
