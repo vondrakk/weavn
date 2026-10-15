@@ -1237,24 +1237,47 @@ function briefSnooze(key){ try{const s=briefSnoozed(); s.add(key); localStorage.
 async function loadBrief(){
   if(BRIEF_HIDDEN){ $('#brief').classList.add('hidden'); return; }
   let b=null; try{const r=await api('/brief'); if(r.ok)b=await r.json();}catch(e){}
+  try{ await loadNotifications(); }catch(e){} // mentions → "needs reply"
   if(b) renderBrief(b); else $('#brief').classList.add('hidden');
 }
+const BRIEF_REVIEW=/review|qa|verif|sign.?off|uat/i;
 function renderBrief(b){
   const sn=briefSnoozed();
-  const drift=(b.drifting||[]).filter(i=>!sn.has(i.key)), plate=(b.plate||[]).filter(i=>!sn.has(i.key)), wins=(b.wins||[]);
-  if(!drift.length && !plate.length && !wins.length){ $('#brief').classList.add('hidden'); return; }
+  const drift=(b.drifting||[]).filter(i=>!sn.has(i.key));
+  const allPlate=(b.plate||[]).filter(i=>!sn.has(i.key));
+  const review=allPlate.filter(i=>BRIEF_REVIEW.test(i.status));
+  const plate=allPlate.filter(i=>!BRIEF_REVIEW.test(i.status));
+  const wins=(b.wins||[]);
+  const mentions=((typeof NOTIFS!=='undefined'&&NOTIFS.items)||[]).filter(n=>n.kind==='mention'&&n.issue_key&&!sn.has(n.issue_key)).slice(0,6);
+  if(!drift.length && !review.length && !plate.length && !wins.length && !mentions.length){ $('#brief').classList.add('hidden'); return; }
   const row=(i,act)=>`<div class="brief-row" data-k="${esc(i.key)}" title="${esc(i.summary)}"><span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span><span class="brow-nm">${esc(i.summary||i.key)}</span>${i.idle_days?`<span class="brow-idle">idle ${i.idle_days}d</span>`:''}<span class="brow-k">${esc(i.key)}</span>${act||''}</div>`;
-  let h=`<div class="brief-h"><span class="mi">bolt</span><b>Catch me up</b><span class="brief-sub">${drift.length} drifting · ${plate.length} active · ${wins.length} shipped this week</span><button class="brief-x" title="Hide for now"><span class="mi">close</span></button></div>`;
+  const mrow=(n)=>`<div class="brief-row" data-k="${esc(n.issue_key)}" title="${esc(n.snippet)}"><span class="mi" style="font-size:14px;color:var(--accent)">alternate_email</span><span class="brow-nm"><b>${esc(n.actor)}</b> — ${esc(n.snippet)}</span><span class="brow-k">${esc(n.issue_key)}</span><button class="brow-go" data-act="open" data-k="${esc(n.issue_key)}">Reply</button><button class="brow-go2" data-act="snooze" data-k="${esc(n.issue_key)}">Dismiss</button></div>`;
+  const subBits=[]; if(drift.length)subBits.push(`${drift.length} drifting`); if(mentions.length)subBits.push(`${mentions.length} @you`); if(review.length)subBits.push(`${review.length} in review`); if(plate.length)subBits.push(`${plate.length} active`); if(wins.length)subBits.push(`${wins.length} shipped`);
+  let h=`<div class="brief-h"><span class="mi">bolt</span><b>Catch me up</b><span class="brief-sub">${subBits.join(' · ')}</span><button class="brief-x" title="Hide for now"><span class="mi">close</span></button></div>`;
   if(drift.length) h+=`<div class="brief-sec"><div class="brief-lbl warn">Drifting — stalled 7+ days</div>`+drift.map(i=>row(i,`<button class="brow-go" data-act="block" data-k="${esc(i.key)}">Mark blocked</button><button class="brow-go2" data-act="snooze" data-k="${esc(i.key)}">Snooze</button>`)).join('')+`</div>`;
+  if(mentions.length) h+=`<div class="brief-sec"><div class="brief-lbl">Needs your reply</div>`+mentions.map(mrow).join('')+`</div>`;
+  if(review.length) h+=`<div class="brief-sec"><div class="brief-lbl">In review — ready to close?</div>`+review.map(i=>row(i,`<button class="brow-go" data-act="done" data-k="${esc(i.key)}">Move to Done</button><button class="brow-go2" data-act="snooze" data-k="${esc(i.key)}">Snooze</button>`)).join('')+`</div>`;
   if(plate.length) h+=`<div class="brief-sec"><div class="brief-lbl">On your plate</div>`+plate.map(i=>row(i)).join('')+`</div>`;
   if(wins.length) h+=`<div class="brief-sec"><div class="brief-lbl">✓ Shipped this week</div>`+wins.map(i=>row(i)).join('')+`</div>`;
   $('#brief').innerHTML=h; $('#brief').classList.remove('hidden');
   $('#brief .brief-x').onclick=()=>{ BRIEF_HIDDEN=true; $('#brief').classList.add('hidden'); };
   $('#brief').querySelectorAll('.brief-row').forEach(r=>r.addEventListener('click',e=>{
     const btn=e.target.closest('button'); const key=r.dataset.k;
-    if(btn){ e.stopPropagation(); if(btn.dataset.act==='snooze'){ briefSnooze(key); r.remove(); } else if(btn.dataset.act==='block'){ briefMarkBlocked(key); } return; }
+    if(btn){ e.stopPropagation(); const a=btn.dataset.act;
+      if(a==='snooze'){ briefSnooze(key); r.remove(); }
+      else if(a==='block'){ briefMarkBlocked(key); }
+      else if(a==='done'){ briefMoveToDone(key); }
+      else if(a==='open'){ openTreeIssue(key); }
+      return; }
     openTreeIssue(key);
   }));
+}
+async function briefMoveToDone(key){
+  WB_TR_CACHE[key]=null; const t=(await wbTransitions(key)).find(x=>/done|close|resolv|complet|ship/i.test(x));
+  if(!t){ alert('No “Done” transition available on '+key+' — opening it.'); openTreeIssue(key); return; }
+  const r=await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:t})}); WB_TR_CACHE[key]=null;
+  if(!r.ok){ alert('Failed: '+await r.text()); return; }
+  wbToast(`Moved ${key} to ${t}`, null); loadBrief();
 }
 async function briefMarkBlocked(key){
   WB_TR_CACHE[key]=null; const t=(await wbTransitions(key)).find(x=>/block|imped|on hold|hold|wait/i.test(x));
