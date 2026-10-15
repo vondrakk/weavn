@@ -474,6 +474,12 @@ pub mod real {
         pub status: String,
         /// The issue's JIRA `created` timestamp (ISO 8601, e.g. 2025-03-14T10:22:33.000+0000).
         pub created: String,
+        /// Issue type name (Epic, Story, Task, Bug, Sub-task, …).
+        pub issue_type: String,
+        /// Parent/epic key, if the issue is a child (epic child or sub-task).
+        pub parent_key: String,
+        /// Parent/epic summary, for display.
+        pub parent_summary: String,
         /// (author, body, created-ISO) per comment.
         pub comments: Vec<(String, String, String)>,
     }
@@ -570,7 +576,7 @@ pub mod real {
                 .query(&[
                     ("jql", jql.as_str()),
                     ("maxResults", mr.as_str()),
-                    ("fields", "summary,description,comment,reporter,status,created"),
+                    ("fields", "summary,description,comment,reporter,status,created,issuetype,parent"),
                 ])
                 .send()
                 .map_err(|e| e.to_string())?;
@@ -604,6 +610,9 @@ pub mod real {
                                 key: i["key"].as_str().unwrap_or("").to_string(),
                                 summary: f["summary"].as_str().unwrap_or("").to_string(),
                                 created: f["created"].as_str().unwrap_or("").to_string(),
+                                issue_type: f["issuetype"]["name"].as_str().unwrap_or("").to_string(),
+                                parent_key: f["parent"]["key"].as_str().unwrap_or("").to_string(),
+                                parent_summary: f["parent"]["fields"]["summary"].as_str().unwrap_or("").to_string(),
                                 reporter: f["reporter"]["displayName"].as_str().unwrap_or("JIRA").to_string(),
                                 status: f["status"]["name"].as_str().unwrap_or("").to_string(),
                                 description: if f["description"].is_null() {

@@ -183,6 +183,9 @@ pub struct MsgRow {
     pub broadcast: bool,
     pub status: String,
     pub created_at: i64, // unix seconds
+    pub issue_type: String,
+    pub parent_key: Option<String>,
+    pub parent_summary: Option<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -264,6 +267,23 @@ pub async fn issue_set_created(pool: &PgPool, workspace: &str, issue_key: &str, 
     Ok(())
 }
 
+/// Set an issue's type + parent/epic link on its top-level rows (from backfill).
+/// Idempotent; empty strings clear. Runs after the root row exists.
+pub async fn issue_set_meta(pool: &PgPool, workspace: &str, issue_key: &str, issue_type: &str, parent_key: Option<&str>, parent_summary: Option<&str>) -> sqlx::Result<()> {
+    sqlx::query(
+        "update message set issue_type = $3, parent_key = $4, parent_summary = $5 \
+         where workspace = $1 and issue_key = $2 and parent_issue is null",
+    )
+    .bind(workspace)
+    .bind(issue_key)
+    .bind(issue_type)
+    .bind(parent_key)
+    .bind(parent_summary)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Replace a conversation's top-level body with `body`, collapsing any coalesced
 /// fragments into the earliest row, and set its `deleted` flag. Used by edit
 /// (deleted=false) and soft delete (deleted=true). JIRA keeps the full changelog.
@@ -337,7 +357,7 @@ pub async fn channel_of_issue(pool: &PgPool, workspace: &str, issue_key: &str) -
 /// Messages in a channel (or, with `subtree`, that channel and its descendants),
 /// ordered for grouping into threads.
 pub async fn read_messages(pool: &PgPool, workspace: &str, channel: &str, subtree: bool) -> sqlx::Result<Vec<MsgRow>> {
-    let cols = "issue_key, parent_issue, author, body, from_jira, deleted, broadcast, status, extract(epoch from created_at)::bigint as created_at";
+    let cols = "issue_key, parent_issue, author, body, from_jira, deleted, broadcast, status, extract(epoch from created_at)::bigint as created_at, issue_type, parent_key, parent_summary";
     let sql = if subtree {
         format!("select {cols} from message where workspace = $1 and (channel = $2 or channel like $2 || ' / %') order by id")
     } else {

@@ -813,6 +813,9 @@ struct ThreadResp {
     pinned: bool,
     deleted: bool,
     status: String,
+    issue_type: String,
+    parent: Option<String>,
+    parent_summary: Option<String>,
     lines: Vec<String>,
     replies: Vec<ReplyResp>,
     reactions: Vec<ReactionResp>,
@@ -1070,6 +1073,9 @@ async fn read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ReadQ
                 ts: row.created_at,
                 deleted: false,
                 status: String::new(),
+                issue_type: String::new(),
+                parent: None,
+                parent_summary: None,
                 lines: Vec::new(),
                 replies: Vec::new(),
                 reactions: Vec::new(),
@@ -1082,6 +1088,13 @@ async fn read(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ReadQ
                 t.deleted = row.deleted;
                 if !row.status.is_empty() {
                     t.status = row.status; // don't let a coalesced fragment (status '') clobber it
+                }
+                if !row.issue_type.is_empty() {
+                    t.issue_type = row.issue_type;
+                }
+                if row.parent_key.as_deref().is_some_and(|p| !p.is_empty()) {
+                    t.parent = row.parent_key;
+                    t.parent_summary = row.parent_summary;
                 }
                 t.lines.push(row.body);
             }
@@ -1536,7 +1549,7 @@ async fn backfill(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Bac
     let (creds, _author, ws) = jira_session(&s, &headers)?;
     let project = r.project.clone();
     let issues = blocking(move || {
-        RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).backfill_issues(&project, 30)
+        RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).backfill_issues(&project, 200)
     })
     .await?;
 
@@ -1544,13 +1557,16 @@ async fn backfill(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Bac
     let mut added = 0usize;
     let mut redated = 0usize;
     for iss in issues {
+        let p_key = (!iss.parent_key.is_empty()).then_some(iss.parent_key.as_str());
+        let p_sum = (!iss.parent_summary.is_empty()).then_some(iss.parent_summary.as_str());
         if weavn_store::issue_exists(&s.pool, &ws, &iss.key).await.map_err(db_err)? {
-            // Already cached — but heal its date in case it was imported with the
-            // old now()-stamp bug (idempotent; JIRA `created` is immutable).
+            // Already cached — heal its date (old now()-stamp bug) and refresh its
+            // type/epic metadata. All idempotent; JIRA `created` is immutable.
             if let Some(ts) = parse_jira_ts(&iss.created) {
                 weavn_store::issue_set_created(&s.pool, &ws, &iss.key, ts).await.map_err(db_err)?;
                 redated += 1;
             }
+            weavn_store::issue_set_meta(&s.pool, &ws, &iss.key, &iss.issue_type, p_key, p_sum).await.map_err(db_err)?;
             continue;
         }
         let body = if iss.description.is_empty() {
@@ -1563,6 +1579,7 @@ async fn backfill(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Bac
         let root_ts = parse_jira_ts(&iss.created).unwrap_or_else(unix_now);
         weavn_store::message_insert_at(&s.pool, &ws, &channel, &iss.key, None, &iss.reporter, &body, true, false, root_ts).await.map_err(db_err)?;
         weavn_store::status_set(&s.pool, &ws, &iss.key, &iss.status).await.map_err(db_err)?;
+        weavn_store::issue_set_meta(&s.pool, &ws, &iss.key, &iss.issue_type, p_key, p_sum).await.map_err(db_err)?;
         for (author, cbody, cts) in iss.comments {
             let ts = parse_jira_ts(&cts).unwrap_or(root_ts);
             weavn_store::message_insert_at(&s.pool, &ws, &channel, &iss.key, Some(&iss.key), &author, &cbody, true, false, ts).await.map_err(db_err)?;

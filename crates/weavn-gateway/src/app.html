@@ -95,8 +95,9 @@
   .stream{flex:1;overflow:auto;padding:4px 0 18px;max-width:900px;width:100%;margin:0 auto}
   /* Slack-style transcript: a 2-col grid (gutter | message). Consecutive messages
      from the same author within a short window collapse under one header (.cont). */
-  .daydiv{display:flex;align-items:center;gap:12px;margin:16px 20px 8px;color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+  .daydiv{display:flex;align-items:center;gap:0;margin:16px 20px 10px;position:sticky;top:0;z-index:1}
   .daydiv::before,.daydiv::after{content:"";height:1px;background:var(--border);flex:1}
+  .daydiv span{background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:3px 13px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.03em}
   .eventline{display:flex;align-items:center;justify-content:center;gap:10px;margin:3px 20px;color:var(--faint);font-size:12px}
   .eventline::before,.eventline::after{content:"";height:1px;background:var(--border);width:34px}
   .msg{position:relative;display:grid;grid-template-columns:52px minmax(0,1fr);padding:4px 20px 3px 0;border-radius:0}
@@ -121,6 +122,16 @@
   .sdot.done .dot{background:var(--ok)}.sdot.done{color:var(--ok)}
   .m-key{font-family:var(--mono);font-size:10px;color:var(--faint);opacity:.55;text-decoration:none}
   .msg:hover .m-key{opacity:1;color:var(--accent)}
+  .m-who{cursor:default}
+  /* issue-type chips + epic link (quiet JIRA decorations) */
+  .tchip{font-size:9px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;border-radius:4px;padding:1px 5px;line-height:1.5}
+  .t-epic{color:#8b5cf6;background:rgba(139,92,246,.15)}
+  .t-story{color:#2f9e5f;background:rgba(47,158,95,.15)}
+  .t-bug{color:#d4493f;background:rgba(212,73,63,.15)}
+  .t-task{color:#3b82f6;background:rgba(59,130,246,.15)}
+  .t-sub,.t-other{color:var(--muted);background:var(--accent-weak)}
+  .m-epic{display:inline-flex;align-items:center;gap:3px;color:var(--faint);font-size:11px;text-decoration:none;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .m-epic:hover{color:var(--accent)}
   .rx:empty{display:none}
   .time{color:var(--faint);font-size:12px}
   .key{font-family:var(--mono);font-size:11px}
@@ -732,9 +743,12 @@ function renderStream(){
     if(newDay) out+=`<div class="daydiv"><span>${esc(dayLabel(t.ts))}</span></div>`;
     const grouped=!newDay && !t.pinned && t.author===pAuthor && (t.ts-pTs)>=0 && (t.ts-pTs)<GROUP_SECS;
     const gut=grouped?`<span class="m-ht">${esc(fmtClock(t.ts))}</span>`:`<div class="av">${esc(initials(t.author))}</div>`;
-    const head=grouped?'':`<div class="m-head"><span class="m-who">${esc(t.author)}</span><span class="m-time">${esc(fmtClock(t.ts))}</span></div>`;
+    const head=grouped?'':`<div class="m-head"><span class="m-who" style="color:${authorColor(t.author)}">${esc(t.author)}</span><span class="m-time">${esc(fmtClock(t.ts))}</span></div>`;
+    const epic=t.parent?`<a class="m-epic" href="${esc(permalink(t.parent))}" target="_blank" rel="noopener" title="Epic ${esc(t.parent)}${t.parent_summary?' — '+esc(t.parent_summary):''}">↳ ${esc(t.parent)}${t.parent_summary?' '+esc(t.parent_summary):''}</a>`:'';
     const deco=`<div class="m-deco">`
+      +typeChip(t.issue_type)
       +(t.status?`<button class="sdot ${statusClass(t.status)}" data-issue="${k}" title="Status: ${esc(t.status)} — click to change"><span class="dot"></span>${esc(t.status)}</button>`:'')
+      +epic
       +`<a class="m-key" href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></div>`;
     out+=`<article class="msg${grouped?' cont':''}${t.pinned?' pinned':''}${t.deleted?' deleted':''}">
       <div class="m-gut">${gut}</div>
@@ -916,11 +930,11 @@ function renderThread(t){
   const root=`<article class="msg troot">
     <div class="m-gut"><div class="av">${esc(initials(t.author))}</div></div>
     <div class="m-main">
-      <div class="m-head"><span class="m-who">${esc(t.author)}</span><span class="m-time">${esc(fmtTime(t.ts))}</span><a class="m-key" href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></div>
+      <div class="m-head"><span class="m-who" style="color:${authorColor(t.author)}">${esc(t.author)}</span><span class="m-time">${esc(fmtTime(t.ts))}</span>${typeChip(t.issue_type)}<a class="m-key" href="${esc(permalink(t.issue_key))}" target="_blank" rel="noopener">${k}</a></div>
       <div class="lines">${t.deleted?'<p class="del">message deleted</p>':renderMd(t.lines.join('\n'))}</div>
     </div></article>`;
   const reps=(t.replies||[]).length
-    ? t.replies.map(x=>`<div class="rep"><div class="rhead"><span class="ra">${esc(x.author)}</span>${x.from_jira?'<span class="fj">FROM JIRA</span>':''}${x.broadcast?'<span class="bc">↗ CHANNEL</span>':''}<span class="rtime">${esc(fmtTime(x.ts))}</span></div><div class="rbody">${mdInline(esc(x.body))}</div></div>`).join('')
+    ? t.replies.map(x=>`<div class="rep"><div class="rhead"><span class="ra" style="color:${authorColor(x.author)}">${esc(x.author)}</span>${x.from_jira?'<span class="fj">FROM JIRA</span>':''}${x.broadcast?'<span class="bc">↗ CHANNEL</span>':''}<span class="rtime">${esc(fmtTime(x.ts))}</span></div><div class="rbody">${mdInline(esc(x.body))}</div></div>`).join('')
     : '<div class="pmuted">No replies yet — start the thread below.</div>';
   const body=$('#threadbody'); const sc=body.scrollTop, atBottom=body.scrollHeight-sc-body.clientHeight<48;
   body.innerHTML=root+reps;
@@ -1285,6 +1299,14 @@ $('#body').addEventListener('keydown',e=>{
 
 // JIRA status chip + workflow transitions
 function statusClass(s){const c=statusCat(s);return c==='done'?'done':(c==='active'?'prog':'todo');}
+// Slack-style per-author name color (stable hash → palette that reads on both themes).
+const NAMECOLORS=['#5b6ef5','#2563eb','#0891b2','#0d9488','#16a34a','#ca8a04','#ea580c','#dc2626','#db2777','#9333ea','#0ea5e9','#65a30d'];
+function authorColor(n){let h=0;n=n||'';for(let i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return NAMECOLORS[h%NAMECOLORS.length];}
+// A JIRA issue-type chip (Epic/Story/Bug/Task/Sub-task) — checked specific→general.
+function typeChip(tp){ tp=(tp||'').trim(); if(!tp) return ''; const l=tp.toLowerCase(); let c='t-other';
+  if(l.includes('epic'))c='t-epic'; else if(l.includes('sub')&&l.includes('task'))c='t-sub';
+  else if(l.includes('story'))c='t-story'; else if(l.includes('bug'))c='t-bug'; else if(l.includes('task'))c='t-task';
+  return `<span class="tchip ${c}">${esc(tp)}</span>`; }
 async function openStatusMenu(btn,issue){
   document.querySelectorAll('.stmenu').forEach(m=>m.remove());
   const r=await api('/transitions?issue='+encodeURIComponent(issue));
