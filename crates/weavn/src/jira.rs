@@ -567,7 +567,9 @@ pub mod real {
 
         /// Read-only: pull up to `max` issues of a project (oldest first) with comments.
         pub fn backfill_issues(&self, project: &str, max: u32) -> Result<Vec<BackfillIssue>, String> {
-            let jql = format!("project = \"{project}\" ORDER BY created ASC");
+            // Most-recently-updated first, so a big board surfaces current activity
+            // instead of its oldest `max` issues (the client re-sorts for display).
+            let jql = format!("project = \"{project}\" ORDER BY updated DESC");
             let mr = max.to_string();
             let resp = self
                 .http

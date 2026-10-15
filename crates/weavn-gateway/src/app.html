@@ -92,7 +92,7 @@
   .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:7px}
   @keyframes spin{to{transform:rotate(360deg)}}
   .loadmsg{color:var(--muted)}
-  .stream{flex:1;overflow:auto;padding:4px 0 18px;max-width:900px;width:100%;margin:0 auto}
+  .stream{flex:1;overflow:auto;padding:4px 0 18px;width:100%}
   /* Slack-style transcript: a 2-col grid (gutter | message). Consecutive messages
      from the same author within a short window collapse under one header (.cont). */
   .daydiv{display:flex;align-items:center;gap:0;margin:16px 20px 10px;position:sticky;top:0;z-index:1}
@@ -158,7 +158,7 @@
   .replybar input{flex:1;border:1px solid var(--border);border-radius:7px;padding:6px 10px;font:inherit;font-size:13px;background:var(--bg);color:var(--fg);outline:none}
   .replybar button{border:0;background:var(--accent-weak);color:var(--accent);border-radius:7px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
   .empty{color:var(--faint);text-align:center;padding:40px}
-  .composer{border-top:1px solid var(--border);padding:12px 16px;max-width:860px;width:100%;margin:0 auto;position:relative}
+  .composer{border-top:1px solid var(--border);padding:12px 16px;width:100%;position:relative}
   .composer form{display:flex;gap:8px}
   .composer input#body{flex:1;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font:inherit;font-size:14px;background:var(--surface);color:var(--fg);outline:none}
   .emojibtn{border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:0 12px;font-size:16px;cursor:pointer}
@@ -243,6 +243,8 @@
   .crow .cc{color:var(--faint);font-size:11px;font-family:var(--mono)}
   .crow .ar{color:var(--faint);font-size:11px;cursor:pointer}
   .csec{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:7px 8px 2px}
+  .csec.board{text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)}
+  .crow .cn .cboard{opacity:.7}
   .chhead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 6px 8px;font-size:11px;color:var(--faint)}
   .chhead #rescanbtn{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:7px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer}
   .chhead #rescanbtn:hover{color:var(--accent);border-color:var(--accent)}
@@ -710,6 +712,8 @@ const ST_TODO=/\b(to\s*do|todo|open|backlog|new|triage|selected\s+for\s+developm
 let STATUSMAP={};
 async function loadStatusMap(){ try{const r=await api('/status-map'); if(r.ok){const m=await r.json(); STATUSMAP={}; for(const k in m) STATUSMAP[(k||'').toLowerCase().trim()]=m[k];}}catch(e){} }
 function statusCat(s){ s=(s||'').toLowerCase().trim(); if(!s) return 'none'; if(STATUSMAP[s]) return STATUSMAP[s]; if(ST_DONE.test(s)) return 'done'; if(ST_TODO.test(s)) return 'todo'; return 'active'; }
+// A conversation's last activity = its creation or its newest reply (for sorting).
+function lastActivity(t){ let m=t.ts||0; if(t.replies) for(const r of t.replies){ if(r.ts&&r.ts>m) m=r.ts; } return m; }
 function isActiveStatus(s){ return statusCat(s)==='active'; }
 let FILTER={q:'',status:'__active',sort:'recent'};
 // Apply the board's filter + sort to THREADS. Default is Slack's river: oldest at
@@ -720,8 +724,9 @@ function filteredSorted(){
   if(q) a=a.filter(t=>((t.author||'')+' '+(t.issue_key||'')+' '+(t.status||'')+' '+(t.lines||[]).join(' ')).toLowerCase().includes(q));
   if(FILTER.status==='__active') a=a.filter(t=>isActiveStatus(t.status));
   else if(FILTER.status) a=a.filter(t=>(t.status||'')===FILTER.status);
-  if(FILTER.sort==='new') a.sort((x,y)=>y.ts-x.ts);
-  else a.sort((x,y)=>x.ts-y.ts); // 'recent' and 'old' both ascend; 'recent' means newest lands at the bottom
+  if(FILTER.sort==='old') a.sort((x,y)=>x.ts-y.ts);           // by creation, oldest first
+  else if(FILTER.sort==='new') a.sort((x,y)=>lastActivity(y)-lastActivity(x)); // newest activity first
+  else a.sort((x,y)=>lastActivity(x)-lastActivity(y));        // 'recent': last activity, newest at the bottom
   return a;
 }
 // Rebuild the status-filter options from the statuses present, and default to the
@@ -1151,15 +1156,19 @@ async function renderSidebar(){
     return (sb-sa)||a.localeCompare(b);
   });
   const row=(c,nested)=>{const tail=c.channel.slice(c.channel.split(' / ')[0].length).replace(/^ \/ /,'');
-    return `<div class="crow${c.archived?' arch':''}${nested?' nested':''}${c.unread>0?' unread':''}${c.channel===CURCH?' active':''}" data-ch="${esc(c.channel)}">
+    // Show the human board NAME; keep the key as a faint secondary (less shouty).
+    const label=nested?(tail||c.name||c.channel):(c.name||c.channel);
+    const sub=(!nested&&c.name&&c.name!==c.channel)?` <span class="cboard">${esc(c.channel)}</span>`:'';
+    return `<div class="crow${c.archived?' arch':''}${nested?' nested':''}${c.unread>0?' unread':''}${c.channel===CURCH?' active':''}" data-ch="${esc(c.channel)}" title="${esc(c.channel)}${c.name?' — '+esc(c.name):''}">
       <span class="st${c.starred?' on':''}" data-ch="${esc(c.channel)}" data-on="${c.starred?1:0}" title="Star channel"><span class="mi${c.starred?' filled':''}">star</span></span>
-      <span class="cn">${c.private?'<span class="mi" style="font-size:13px;vertical-align:-2px">lock</span> ':''}${esc(nested?(tail||c.channel):c.channel)}${c.name&&!nested?` <span class="cboard">${esc(c.name)}</span>`:''}</span>${c.unread>0?`<span class="ubadge">${c.unread}</span>`:''}<span class="cc">${c.count||''}</span>
+      <span class="cn">${c.private?'<span class="mi" style="font-size:13px;vertical-align:-2px">lock</span> ':''}${esc(label)}${sub}</span>${c.unread>0?`<span class="ubadge">${c.unread}</span>`:''}<span class="cc">${c.count||''}</span>
       <span class="ar" data-ch="${esc(c.channel)}" data-on="${c.archived?1:0}" title="Archive">${c.archived?'unarchive':'archive'}</span>
     </div>`;};
   cl.innerHTML=names.map(seg=>{
     const rows=groups[seg].sort((a,b)=>(b.starred-a.starred)||a.channel.localeCompare(b.channel));
     const sectioned=rows.length>1||rows[0].channel!==seg;
-    return (sectioned?`<div class="csec">${esc(seg)}</div>`:'')+rows.map(c=>row(c,sectioned)).join('');
+    const segName=projName(seg)||(rows.find(r=>r.channel===seg)||{}).name||seg;
+    return (sectioned?`<div class="csec board">${esc(segName)}</div>`:'')+rows.map(c=>row(c,sectioned)).join('');
   }).join('');
   cl.querySelectorAll('.crow').forEach(row=>row.addEventListener('click',e=>{
     if(e.target.classList.contains('st')||e.target.classList.contains('ar'))return;
