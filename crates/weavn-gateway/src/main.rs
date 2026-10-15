@@ -1182,17 +1182,20 @@ struct BriefItem {
     summary: String,
     status: String,
     idle_days: i64,
+    assignee: String,
 }
 #[derive(Serialize)]
 struct BriefResp {
     drifting: Vec<BriefItem>,
     plate: Vec<BriefItem>,
     wins: Vec<BriefItem>,
+    claim: Vec<BriefItem>,
+    nudge: Vec<BriefItem>,
 }
 /// The IC "Catch me up" brief — heuristic, computed from the user's own JIRA.
 async fn brief(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<BriefResp>, ApiError> {
     let (creds, _author, _ws) = jira_session(&s, &headers)?;
-    let (drifting, plate, wins) = blocking(move || {
+    let b = blocking(move || {
         RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).my_brief()
     })
     .await?;
@@ -1204,10 +1207,17 @@ async fn brief(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Brief
                 key: r.key,
                 summary: r.summary,
                 status: r.status,
+                assignee: r.assignee,
             })
             .collect()
     };
-    Ok(Json(BriefResp { drifting: conv(drifting), plate: conv(plate), wins: conv(wins) }))
+    Ok(Json(BriefResp {
+        drifting: conv(b.drifting),
+        plate: conv(b.plate),
+        wins: conv(b.wins),
+        claim: conv(b.claim),
+        nudge: conv(b.nudge),
+    }))
 }
 
 /// One item in the unified temporal stream.

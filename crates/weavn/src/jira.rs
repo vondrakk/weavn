@@ -512,6 +512,16 @@ pub mod real {
         pub summary: String,
         pub status: String,
         pub updated: String, // ISO 8601
+        pub assignee: String,
+    }
+
+    /// All signal lists for the "Catch me up" brief.
+    pub struct MyBrief {
+        pub drifting: Vec<BriefRow>,
+        pub plate: Vec<BriefRow>,
+        pub wins: Vec<BriefRow>,
+        pub claim: Vec<BriefRow>,
+        pub nudge: Vec<BriefRow>,
     }
 
     /// An epic in the Projects→Epics→Stories browser.
@@ -748,24 +758,31 @@ pub mod real {
                     summary: i["fields"]["summary"].as_str().unwrap_or("").to_string(),
                     status: i["fields"]["status"]["name"].as_str().unwrap_or("").to_string(),
                     updated: i["fields"]["updated"].as_str().unwrap_or("").to_string(),
+                    assignee: i["fields"]["assignee"]["displayName"].as_str().unwrap_or("").to_string(),
                 })
                 .collect()
         }
 
-        /// The IC "Catch me up" brief, computed from the user's own JIRA via JQL:
-        /// (drifting = stalled in-progress, plate = active recent, wins = shipped this week).
-        pub fn my_brief(&self) -> Result<(Vec<BriefRow>, Vec<BriefRow>, Vec<BriefRow>), String> {
-            let f = "summary,status,updated";
-            let drifting = Self::brief_rows(&self.search(
-                "assignee = currentUser() AND statusCategory = \"In Progress\" AND updated <= \"-7d\" ORDER BY updated ASC",
-                f, 15)?);
-            let plate = Self::brief_rows(&self.search(
-                "assignee = currentUser() AND statusCategory != Done AND updated >= \"-3d\" ORDER BY updated DESC",
-                f, 15)?);
-            let wins = Self::brief_rows(&self.search(
-                "assignee = currentUser() AND statusCategory = Done AND updated >= \"-7d\" ORDER BY updated DESC",
-                f, 15)?);
-            Ok((drifting, plate, wins))
+        /// The IC "Catch me up" brief, computed from the user's own JIRA via JQL.
+        pub fn my_brief(&self) -> Result<MyBrief, String> {
+            let f = "summary,status,updated,assignee";
+            Ok(MyBrief {
+                // stalled in-progress assigned to me
+                drifting: Self::brief_rows(&self.search(
+                    "assignee = currentUser() AND statusCategory = \"In Progress\" AND updated <= \"-7d\" ORDER BY updated ASC", f, 15)?),
+                // active, recently touched, assigned to me
+                plate: Self::brief_rows(&self.search(
+                    "assignee = currentUser() AND statusCategory != Done AND updated >= \"-3d\" ORDER BY updated DESC", f, 15)?),
+                // shipped by me this week
+                wins: Self::brief_rows(&self.search(
+                    "assignee = currentUser() AND statusCategory = Done AND updated >= \"-7d\" ORDER BY updated DESC", f, 15)?),
+                // I reported it, nobody owns it → claim?
+                claim: Self::brief_rows(&self.search(
+                    "reporter = currentUser() AND assignee is EMPTY AND statusCategory != Done ORDER BY updated DESC", f, 12)?),
+                // I reported it, someone else owns it, stalled → nudge?
+                nudge: Self::brief_rows(&self.search(
+                    "reporter = currentUser() AND assignee is not EMPTY AND assignee != currentUser() AND statusCategory = \"In Progress\" AND updated <= \"-7d\" ORDER BY updated ASC", f, 10)?),
+            })
         }
 
         /// Read-only: one issue's full content as a conversation (description + comments).

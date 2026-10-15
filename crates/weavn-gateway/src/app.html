@@ -1248,15 +1248,20 @@ function renderBrief(b){
   const review=allPlate.filter(i=>BRIEF_REVIEW.test(i.status));
   const plate=allPlate.filter(i=>!BRIEF_REVIEW.test(i.status));
   const wins=(b.wins||[]);
+  const claim=(b.claim||[]).filter(i=>!sn.has(i.key));
+  const nudge=(b.nudge||[]).filter(i=>!sn.has(i.key));
   const mentions=((typeof NOTIFS!=='undefined'&&NOTIFS.items)||[]).filter(n=>n.kind==='mention'&&n.issue_key&&!sn.has(n.issue_key)).slice(0,6);
-  if(!drift.length && !review.length && !plate.length && !wins.length && !mentions.length){ $('#brief').classList.add('hidden'); return; }
+  if(!drift.length && !review.length && !plate.length && !wins.length && !mentions.length && !claim.length && !nudge.length){ $('#brief').classList.add('hidden'); return; }
   const row=(i,act)=>`<div class="brief-row" data-k="${esc(i.key)}" title="${esc(i.summary)}"><span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span><span class="brow-nm">${esc(i.summary||i.key)}</span>${i.idle_days?`<span class="brow-idle">idle ${i.idle_days}d</span>`:''}<span class="brow-k">${esc(i.key)}</span>${act||''}</div>`;
+  const nrow=(i)=>`<div class="brief-row" data-k="${esc(i.key)}" title="${esc(i.summary)}"><span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span><span class="brow-nm">${esc(i.summary||i.key)}${i.assignee?` <span style="color:var(--faint)">· ${esc(i.assignee)}</span>`:''}</span>${i.idle_days?`<span class="brow-idle">idle ${i.idle_days}d</span>`:''}<span class="brow-k">${esc(i.key)}</span><button class="brow-go" data-act="nudge" data-k="${esc(i.key)}">Nudge</button><button class="brow-go2" data-act="snooze" data-k="${esc(i.key)}">Snooze</button></div>`;
   const mrow=(n)=>`<div class="brief-row" data-k="${esc(n.issue_key)}" title="${esc(n.snippet)}"><span class="mi" style="font-size:14px;color:var(--accent)">alternate_email</span><span class="brow-nm"><b>${esc(n.actor)}</b> — ${esc(n.snippet)}</span><span class="brow-k">${esc(n.issue_key)}</span><button class="brow-go" data-act="open" data-k="${esc(n.issue_key)}">Reply</button><button class="brow-go2" data-act="snooze" data-k="${esc(n.issue_key)}">Dismiss</button></div>`;
-  const subBits=[]; if(drift.length)subBits.push(`${drift.length} drifting`); if(mentions.length)subBits.push(`${mentions.length} @you`); if(review.length)subBits.push(`${review.length} in review`); if(plate.length)subBits.push(`${plate.length} active`); if(wins.length)subBits.push(`${wins.length} shipped`);
+  const subBits=[]; if(drift.length)subBits.push(`${drift.length} drifting`); if(mentions.length)subBits.push(`${mentions.length} @you`); if(review.length)subBits.push(`${review.length} in review`); if(claim.length)subBits.push(`${claim.length} to claim`); if(nudge.length)subBits.push(`${nudge.length} waiting`); if(plate.length)subBits.push(`${plate.length} active`); if(wins.length)subBits.push(`${wins.length} shipped`);
   let h=`<div class="brief-h"><span class="mi">bolt</span><b>Catch me up</b><span class="brief-sub">${subBits.join(' · ')}</span><button class="brief-x" title="Hide for now"><span class="mi">close</span></button></div>`;
   if(drift.length) h+=`<div class="brief-sec"><div class="brief-lbl warn">Drifting — stalled 7+ days</div>`+drift.map(i=>row(i,`<button class="brow-go" data-act="block" data-k="${esc(i.key)}">Mark blocked</button><button class="brow-go2" data-act="snooze" data-k="${esc(i.key)}">Snooze</button>`)).join('')+`</div>`;
   if(mentions.length) h+=`<div class="brief-sec"><div class="brief-lbl">Needs your reply</div>`+mentions.map(mrow).join('')+`</div>`;
   if(review.length) h+=`<div class="brief-sec"><div class="brief-lbl">In review — ready to close?</div>`+review.map(i=>row(i,`<button class="brow-go" data-act="done" data-k="${esc(i.key)}">Move to Done</button><button class="brow-go2" data-act="snooze" data-k="${esc(i.key)}">Snooze</button>`)).join('')+`</div>`;
+  if(claim.length) h+=`<div class="brief-sec"><div class="brief-lbl">You reported — nobody owns these</div>`+claim.map(i=>row(i,`<button class="brow-go" data-act="claim" data-k="${esc(i.key)}">Assign to me</button><button class="brow-go2" data-act="snooze" data-k="${esc(i.key)}">Snooze</button>`)).join('')+`</div>`;
+  if(nudge.length) h+=`<div class="brief-sec"><div class="brief-lbl">Waiting on others — stalled</div>`+nudge.map(nrow).join('')+`</div>`;
   if(plate.length) h+=`<div class="brief-sec"><div class="brief-lbl">On your plate</div>`+plate.map(i=>row(i)).join('')+`</div>`;
   if(wins.length) h+=`<div class="brief-sec"><div class="brief-lbl">✓ Shipped this week</div>`+wins.map(i=>row(i)).join('')+`</div>`;
   $('#brief').innerHTML=h; $('#brief').classList.remove('hidden');
@@ -1267,10 +1272,22 @@ function renderBrief(b){
       if(a==='snooze'){ briefSnooze(key); r.remove(); }
       else if(a==='block'){ briefMarkBlocked(key); }
       else if(a==='done'){ briefMoveToDone(key); }
+      else if(a==='claim'){ briefClaim(key); }
+      else if(a==='nudge'){ briefNudge(key); }
       else if(a==='open'){ openTreeIssue(key); }
       return; }
     openTreeIssue(key);
   }));
+}
+async function briefClaim(key){
+  const r=await api('/assign',{method:'POST',body:JSON.stringify({issue:key})});
+  if(!r.ok){ alert('Assign failed: '+await r.text()); return; }
+  wbToast(`Assigned ${key} to you`, null); loadBrief();
+}
+async function briefNudge(key){
+  const r=await api('/issue/comment',{method:'POST',body:JSON.stringify({key,body:'Any movement on this? It’s been quiet for a while.'})});
+  if(!r.ok){ alert('Nudge failed: '+await r.text()); return; }
+  wbToast(`Nudged ${key}`, null);
 }
 async function briefMoveToDone(key){
   WB_TR_CACHE[key]=null; const t=(await wbTransitions(key)).find(x=>/done|close|resolv|complet|ship/i.test(x));
