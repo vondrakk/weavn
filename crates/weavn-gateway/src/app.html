@@ -136,6 +136,17 @@
   .tbody{flex:1;overflow:auto;padding:12px 14px}
   .troot{border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px}
   .tbody .rep{margin-bottom:9px}
+  /* suggest-and-confirm write-back */
+  .suggest{display:flex;align-items:center;gap:8px;margin:0 12px;padding:8px 10px;border:1px solid var(--accent);background:var(--accent-weak);border-radius:10px;font-size:13px}
+  .suggest.hidden{display:none}
+  .suggest .si-mi{color:var(--accent);flex:none}
+  .suggest .si-txt{flex:1;min-width:0}
+  .suggest .si-txt b{font-weight:700}
+  .suggest button{border:0;border-radius:8px;padding:5px 11px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .suggest .si-go{background:var(--accent);color:#fff}
+  .suggest .si-no{background:transparent;color:var(--muted)}
+  .wbtoast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:13px}
+  .wbtoast .u{color:var(--accent);font-weight:600;cursor:pointer}
   .tcompose{border-top:1px solid var(--border);padding:10px 12px}
   .tcompose form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .tcompose input#threadinput{flex:1;min-width:120px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;font:inherit;background:var(--bg);color:var(--fg);outline:none}
@@ -572,6 +583,7 @@
       <div class="resizer rs-thread" id="rs-thread" title="Drag to resize"></div>
       <div class="thead"><b>Thread</b><span class="sp"></span><button class="kk" id="threadclose" title="Close thread"><span class="mi">close</span></button></div>
       <div class="tbody" id="threadbody"></div>
+      <div class="suggest hidden" id="suggest"></div>
       <div class="tcompose">
         <form id="threadform">
           <input id="threadinput" placeholder="Reply…" autocomplete="off">
@@ -1144,7 +1156,7 @@ function refilterTree(){
 }
 // open a tree issue (epic/story) as a conversation in the thread pane
 async function openTreeIssue(key){
-  CURTHREAD=null;
+  CURTHREAD=null; if(typeof hideSuggest==='function')hideSuggest();
   $('.main').classList.add('tp'); $('#threadpane').classList.remove('hidden');
   document.querySelectorAll('#sidechans .trow.active').forEach(r=>r.classList.remove('active'));
   const tr=document.querySelector('#sidechans .trow[data-k="'+cssEsc(key)+'"]'); if(tr)tr.classList.add('active');
@@ -1301,11 +1313,11 @@ async function loadActivityFeed(){
 // --- thread pane: Slack-style thread expansion in the right rail ---
 function openThread(key){
   const t=THREADS.find(x=>x.issue_key===key); if(!t) return;
-  CURTHREAD=key; TREEISSUE=null;
+  CURTHREAD=key; TREEISSUE=null; $('#threadinput').value=''; if(typeof hideSuggest==='function')hideSuggest();
   $('.main').classList.add('tp'); $('#threadpane').classList.remove('hidden');
   renderThread(t); $('#threadinput').focus();
 }
-function closeThread(){ CURTHREAD=null; TREEISSUE=null; document.querySelectorAll('#sidechans .trow.active').forEach(r=>r.classList.remove('active')); $('#threadpane').classList.add('hidden'); $('.main').classList.remove('tp'); }
+function closeThread(){ CURTHREAD=null; TREEISSUE=null; if(typeof hideSuggest==='function')hideSuggest(); document.querySelectorAll('#sidechans .trow.active').forEach(r=>r.classList.remove('active')); $('#threadpane').classList.add('hidden'); $('.main').classList.remove('tp'); }
 function renderThread(t){
   const k=esc(t.issue_key);
   const root=`<article class="msg troot">
@@ -1323,7 +1335,7 @@ function renderThread(t){
 }
 $('#threadclose').addEventListener('click',closeThread);
 $('#threadform').addEventListener('submit',async e=>{
-  e.preventDefault();
+  e.preventDefault(); hideSuggest();
   const body=$('#threadinput').value.trim(); if(!body) return;
   const btn=e.target.querySelector('button[type=submit]'); btn.disabled=true;
   if(TREEISSUE){ // a hierarchy issue — post a JIRA comment directly
@@ -1340,6 +1352,56 @@ $('#threadform').addEventListener('submit',async e=>{
   $('#threadinput').value=''; $('#threadbc').checked=false;
   loadChannel(); // refreshes the stream + re-renders this thread (CURTHREAD)
 });
+
+// --- Suggest-and-confirm write-back: talk mutates the ticket --------------------
+// Detects an explicit intent in a reply, offers a one-tap confirm to transition
+// the issue (only to a transition JIRA actually allows), with undo. Never silent.
+const WB_INTENTS=[
+  {re:/\b(shipped|ship it|done|resolved|closed|merged|completed|complete|finished|fixed|landed|deployed)\b/i, want:/done|close|resolv|complet|fixed|ship|deploy/i},
+  {re:/\b(on it|picking (this|it) up|starting|started|wip|in progress|working on (it|this)|taking (this|it))\b/i, want:/progress|doing|start|develop|wip|active/i},
+  {re:/\b(in review|prs? up|pr is up|ready for review|needs review|up for review|code review)\b/i, want:/review|qa|verify/i},
+];
+function wbDetect(t){ for(const it of WB_INTENTS){ if(it.re.test(t)) return it; } return null; }
+let WB_TR_CACHE={}, WB_SUGGEST=null, wbTimer=null;
+function currentIssueKey(){ return TREEISSUE?TREEISSUE.issue_key:(CURTHREAD||null); }
+function currentIssueStatus(){ if(TREEISSUE)return TREEISSUE.status||''; const t=THREADS.find(x=>x.issue_key===CURTHREAD); return t?t.status||'':''; }
+async function wbTransitions(key){ if(WB_TR_CACHE[key])return WB_TR_CACHE[key]; try{const r=await api('/transitions?issue='+encodeURIComponent(key)); if(r.ok){const v=await r.json();WB_TR_CACHE[key]=v;return v;}}catch(e){} return []; }
+function hideSuggest(){ WB_SUGGEST=null; const s=$('#suggest'); if(s)s.classList.add('hidden'); }
+async function wbMaybeSuggest(text){
+  const key=currentIssueKey(); if(!key){ hideSuggest(); return; }
+  const intent=wbDetect(text); if(!intent){ hideSuggest(); return; }
+  const target=(await wbTransitions(key)).find(t=>intent.want.test(t));
+  if(!target || (currentIssueStatus()||'').toLowerCase()===target.toLowerCase()){ hideSuggest(); return; }
+  WB_SUGGEST={key,target};
+  $('#suggest').innerHTML=`<span class="mi si-mi">bolt</span><span class="si-txt">Move <b>${esc(key)}</b> to <b>${esc(target)}</b>?</span><button class="si-go" type="button">Confirm &amp; reply</button><button class="si-no" type="button">Dismiss</button>`;
+  $('#suggest').classList.remove('hidden');
+  $('#suggest .si-go').onclick=wbConfirm; $('#suggest .si-no').onclick=hideSuggest;
+}
+async function wbConfirm(){
+  if(!WB_SUGGEST)return; const {key,target}=WB_SUGGEST, prev=currentIssueStatus(); hideSuggest();
+  const body=$('#threadinput').value.trim();
+  if(body){ if(TREEISSUE){await api('/issue/comment',{method:'POST',body:JSON.stringify({key,body})});} else {await api('/reply',{method:'POST',body:JSON.stringify({issue:key,body,broadcast:false})});} $('#threadinput').value=''; }
+  const r=await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:target})});
+  WB_TR_CACHE[key]=null; // transitions change after a move
+  if(!r.ok){ alert('Transition failed: '+await r.text()); return; }
+  if(TREEISSUE) openTreeIssue(key); else loadChannel();
+  wbToast(`Moved ${key} to ${target}`, prev?()=>wbUndo(key,prev):null);
+}
+async function wbUndo(key,prev){
+  WB_TR_CACHE[key]=null; const back=(await wbTransitions(key)).find(t=>t.toLowerCase()===prev.toLowerCase());
+  if(!back){ alert('Can’t undo automatically — no transition back to “'+prev+'”.'); return; }
+  await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:back})}); WB_TR_CACHE[key]=null;
+  if(TREEISSUE&&TREEISSUE.issue_key===key) openTreeIssue(key); else loadChannel();
+}
+function wbToast(msg,undoFn){
+  document.querySelectorAll('.wbtoast').forEach(t=>t.remove());
+  const t=document.createElement('div'); t.className='wbtoast';
+  t.innerHTML=`<span><span class="mi" style="color:var(--ok);vertical-align:-4px">check_circle</span> ${esc(msg)}</span>`+(undoFn?'<span class="u">Undo</span>':'');
+  document.body.appendChild(t);
+  if(undoFn) t.querySelector('.u').onclick=()=>{ t.remove(); undoFn(); };
+  setTimeout(()=>{ if(t.parentNode)t.remove(); }, 8000);
+}
+$('#threadinput').addEventListener('input',e=>{ const v=e.target.value; clearTimeout(wbTimer); wbTimer=setTimeout(()=>wbMaybeSuggest(v),350); });
 // "Only what's changed" vs "everything" (Slack-like activity view)
 $('#activitytoggle').addEventListener('click',()=>{
   ACTIVITY=!ACTIVITY;
