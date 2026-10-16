@@ -504,6 +504,24 @@ pub mod real {
         pub parent_summary: String,
         /// (author, body, created-ISO) per comment.
         pub comments: Vec<(String, String, String)>,
+        /// Every (accountId, displayName, avatarUrl) seen on this issue — reporter,
+        /// assignee, and comment authors — for caching real JIRA avatars.
+        pub people: Vec<(String, String, String)>,
+    }
+
+    /// Pull (accountId, displayName, avatarUrl) from a JIRA user object, if it has
+    /// the pieces we need. Prefers the 48px avatar for crisp display.
+    pub fn person_triple(u: &Value) -> Option<(String, String, String)> {
+        let id = u["accountId"].as_str().unwrap_or("");
+        let name = u["displayName"].as_str().unwrap_or("");
+        let av = u["avatarUrls"]["48x48"]
+            .as_str()
+            .or_else(|| u["avatarUrls"]["32x32"].as_str())
+            .unwrap_or("");
+        if id.is_empty() || name.is_empty() || av.is_empty() {
+            return None;
+        }
+        Some((id.to_string(), name.to_string(), av.to_string()))
     }
 
     /// One issue row in the "Catch me up" brief.
@@ -657,7 +675,7 @@ pub mod real {
                 .query(&[
                     ("jql", jql.as_str()),
                     ("maxResults", mr.as_str()),
-                    ("fields", "summary,description,comment,reporter,status,created,issuetype,parent"),
+                    ("fields", "summary,description,comment,reporter,assignee,status,created,issuetype,parent"),
                 ])
                 .send()
                 .map_err(|e| e.to_string())?;
@@ -687,6 +705,14 @@ pub mod real {
                                         .collect()
                                 })
                                 .unwrap_or_default();
+                            let mut people = Vec::new();
+                            if let Some(p) = person_triple(&f["reporter"]) { people.push(p); }
+                            if let Some(p) = person_triple(&f["assignee"]) { people.push(p); }
+                            if let Some(cs) = f["comment"]["comments"].as_array() {
+                                for c in cs {
+                                    if let Some(p) = person_triple(&c["author"]) { people.push(p); }
+                                }
+                            }
                             BackfillIssue {
                                 key: i["key"].as_str().unwrap_or("").to_string(),
                                 summary: f["summary"].as_str().unwrap_or("").to_string(),
@@ -702,6 +728,7 @@ pub mod real {
                                     crate::format::adf_to_mrkdwn(&f["description"])
                                 },
                                 comments,
+                                people,
                             }
                         })
                         .collect()

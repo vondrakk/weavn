@@ -276,18 +276,40 @@
   .feedhead{padding:12px 18px;font-weight:700;font-size:15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
   .feedhead .fh-sub{font-weight:400;color:var(--muted);font-size:12px}
   .feedbody{flex:1;overflow:auto;padding:8px 0}
-  /* team standup */
-  .su-lbl{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:10px 18px 3px}
-  .su-lbl.warn{color:#c8921a}
-  .su-person{padding:2px 18px 4px}
+  /* team standup — attention-first triage */
+  .su-toolbar{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex:none;flex-wrap:wrap}
+  .su-toolbar.hidden{display:none}
+  .su-toolbar select,.su-toolbar input{border:1px solid var(--border);border-radius:7px;padding:5px 8px;font:inherit;font-size:12px;background:var(--bg);color:var(--fg)}
+  .su-toolbar select{cursor:pointer}
+  .su-toolbar #su-q{flex:1;min-width:120px}
+  .su-toolbar .su-count{font-size:11px;color:var(--faint);white-space:nowrap}
+  /* pinned attention band */
+  .su-attn{margin:12px 16px 4px;border:1px solid color-mix(in srgb,#c8921a 45%,var(--border));border-radius:12px;background:color-mix(in srgb,#c8921a 7%,var(--surface));overflow:hidden}
+  .su-attn-h{display:flex;align-items:center;gap:10px;padding:9px 13px;font-size:12px;font-weight:700;color:#b5820f;border-bottom:1px solid color-mix(in srgb,#c8921a 22%,var(--border))}
+  .su-attn-h .mi{font-size:17px}
+  .su-attn-h .su-pill{font-size:11px;font-weight:700;background:color-mix(in srgb,#c8921a 16%,var(--surface));color:#9c6f0c;border-radius:20px;padding:1px 9px}
+  .su-attn-h .su-pill.idle{background:var(--accent-weak);color:var(--accent)}
+  .su-attn-body{padding:4px 4px 6px}
+  .su-attn .su-item{padding:5px 11px;border-radius:8px}
+  /* collapsible sections */
+  .su-sec{margin:6px 16px}
+  .su-sec-h{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:transparent;cursor:pointer;padding:8px 6px;border-bottom:1px solid var(--border);font:inherit}
+  .su-sec-h .mi{font-size:18px;color:var(--faint);transition:transform .12s}
+  .su-sec.open .su-sec-h .mi{transform:rotate(90deg)}
+  .su-sec-h b{font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)}
+  .su-sec-h .su-n{font-size:11px;color:var(--faint);font-weight:600}
+  .su-sec-body{display:none;padding:2px 0 6px}
+  .su-sec.open .su-sec-body{display:block}
+  .su-person{padding:2px 4px 4px}
   .su-name{font-weight:700;font-size:13px;margin:5px 0 1px;display:flex;align-items:center;gap:7px}
-  .su-name .av{width:22px;height:22px;border-radius:6px;font-size:10px}
-  .su-item{display:flex;align-items:center;gap:8px;padding:3px 8px 3px 31px;font-size:13px;cursor:pointer;border-radius:6px}
+  .su-name .av{width:22px;height:22px;border-radius:6px;font-size:10px;object-fit:cover}
+  .su-item{display:flex;align-items:center;gap:8px;padding:3px 8px 3px 10px;font-size:13px;cursor:pointer;border-radius:6px}
   .su-item:hover{background:var(--accent-weak)}
   .su-item .si-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .su-item .si-who{color:var(--muted);font-size:11px;white-space:nowrap}
   .su-item .si-k{font-family:var(--mono);font-size:10px;color:var(--faint)}
-  .su-item .si-idle{color:#c8921a;font-size:11px;font-weight:600}
-  .su-flat .su-item{padding-left:18px}
+  .su-item .si-idle{color:#c8921a;font-size:11px;font-weight:600;white-space:nowrap}
+  .su-empty{color:var(--faint);font-size:12px;padding:16px;text-align:center}
   /* "Catch me up" brief — ambient, confirmable IC digest atop the stream */
   .brief{border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--accent) 4%,var(--surface));padding:10px 16px 12px;flex:none}
   .brief.hidden{display:none}
@@ -627,6 +649,17 @@
           <button id="standuppost" class="fgear" title="Post this standup to the board" style="padding:6px 11px"><span class="mi">send</span> Post to board</button>
           <button id="standuprefresh" class="fgear" title="Refresh"><span class="mi">refresh</span></button>
         </div>
+        <div class="su-toolbar hidden" id="sutoolbar">
+          <select id="su-person" title="Filter by assignee"><option value="">Everyone</option></select>
+          <select id="su-focus" title="What to show">
+            <option value="all">All activity</option>
+            <option value="attn">Needs attention only</option>
+            <option value="active">In progress only</option>
+            <option value="shipped">Shipped only</option>
+          </select>
+          <input id="su-q" type="search" placeholder="Filter issues…">
+          <span class="su-count" id="su-count"></span>
+        </div>
         <div class="feedbody" id="standupbody"><div class="feedempty">Pick a board to generate its standup.</div></div>
       </div>
     </section>
@@ -662,6 +695,11 @@ let CURDM=null; // {id, members:[{id,display}]} when a DM is open
 async function api(path,opts={}){opts.credentials='same-origin';opts.headers=Object.assign({'content-type':'application/json'},opts.headers||{});return fetch(path,opts);}
 function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function initials(n){return (n||'?').split(/[\s@._]/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('');}
+// Real JIRA avatars, resolved by display name (loaded from /jira/users). Falls back
+// to the colored initials square when we haven't seen the person's photo.
+let AVATARS={};
+function avatarEl(name,cls){const u=AVATARS[(name||'').toLowerCase().trim()]; cls=cls||'av'; return u?`<img class="${cls}" src="${esc(u)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'${cls}',textContent:'${esc(initials(name))}'}))">`:`<span class="${cls}">${esc(initials(name))}</span>`;}
+async function loadAvatars(){ try{const r=await api('/jira/users'); if(r.ok){const m=await r.json(); AVATARS={}; for(const k in m) AVATARS[(k||'').toLowerCase().trim()]=m[k];}}catch(e){} }
 function fmtTime(ts){try{
   const d=new Date(ts*1000), opts={month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};
   if(d.getFullYear()!==new Date().getFullYear()) opts.year='numeric'; // don't hide the year on old tickets
@@ -1247,25 +1285,65 @@ async function initStandup(){
   if(cur){ sel.value=cur; STANDUP_PROJ=cur; loadStandup(); }
 }
 async function loadStandup(){
-  if(!STANDUP_PROJ){ $('#standupbody').innerHTML='<div class="feedempty">Pick a board to generate its standup.</div>'; return; }
+  if(!STANDUP_PROJ){ $('#sutoolbar').classList.add('hidden'); $('#standupbody').innerHTML='<div class="feedempty">Pick a board to generate its standup.</div>'; return; }
+  $('#sutoolbar').classList.add('hidden');
   $('#standupbody').innerHTML='<div class="feedempty"><span class="spin"></span>Generating standup…</div>';
+  STANDUP_EXP.active=null; STANDUP_EXP.shipped=null; // fresh board → auto expand rules
   try{const r=await api('/standup?project='+encodeURIComponent(STANDUP_PROJ)); if(!r.ok){$('#standupbody').innerHTML='<div class="feedempty">'+esc(await r.text())+'</div>';return;} STANDUP_DATA=await r.json();}catch(e){$('#standupbody').innerHTML='<div class="feedempty">Network error.</div>';return;}
+  loadAvatars().then(()=>{ if(VIEW==='standup'&&STANDUP_DATA)renderStandup(STANDUP_DATA); });
+  $('#sutoolbar').classList.remove('hidden');
+  suPopulatePeople(STANDUP_DATA);
   renderStandup(STANDUP_DATA);
 }
 function groupByAssignee(items){ const g={}; (items||[]).forEach(i=>{const a=i.assignee||'Unassigned'; (g[a]=g[a]||[]).push(i);}); return g; }
-function suItem(i,showIdle){ return `<div class="su-item" data-k="${esc(i.key)}" title="${esc(i.summary)}"><span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span><span class="si-nm">${esc(i.summary||i.key)}</span>${showIdle&&i.idle_days?`<span class="si-idle">idle ${i.idle_days}d</span>`:''}<span class="si-k">${esc(i.key)}</span></div>`; }
-function suGroup(items,showIdle){ const g=groupByAssignee(items); return Object.keys(g).sort().map(name=>`<div class="su-person"><div class="su-name"><span class="av">${esc(initials(name))}</span>${esc(name)}</div>${g[name].map(i=>suItem(i,showIdle)).join('')}</div>`).join(''); }
+// Attention-first triage: pin what needs action (stalled + unassigned), collapse the
+// rest, and filter by person / focus / text. STANDUP_EXP: null = auto, true/false = user set.
+const STANDUP_FILTER={person:'',focus:'all',q:''};
+const STANDUP_EXP={active:null,shipped:null};
+function suMatchQ(i){ const q=STANDUP_FILTER.q.toLowerCase().trim(); if(!q)return true; return (i.summary||'').toLowerCase().includes(q)||(i.key||'').toLowerCase().includes(q); }
+function suFilt(items){ return (items||[]).filter(i=>{ if(STANDUP_FILTER.person && (i.assignee||'Unassigned')!==STANDUP_FILTER.person) return false; return suMatchQ(i); }); }
+function suItem(i,opt){ opt=opt||{}; return `<div class="su-item" data-k="${esc(i.key)}" title="${esc(i.summary||i.key)}"><span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span><span class="si-nm">${esc(i.summary||i.key)}</span>${opt.showWho?`<span class="si-who">${esc(i.assignee||'Unassigned')}</span>`:''}${opt.showIdle&&i.idle_days?`<span class="si-idle">idle ${i.idle_days}d</span>`:''}<span class="si-k">${esc(i.key)}</span></div>`; }
+function suGroup(items){ const g=groupByAssignee(items); return Object.keys(g).sort().map(name=>`<div class="su-person"><div class="su-name">${avatarEl(name)}${esc(name)}</div>${g[name].map(i=>suItem(i)).join('')}</div>`).join(''); }
+function suSection(id,title,items,open){
+  return `<div class="su-sec${open?' open':''}" data-sec="${id}"><button class="su-sec-h"><span class="mi">chevron_right</span><b>${esc(title)}</b><span class="su-n">${items.length}</span></button><div class="su-sec-body">${items.length?suGroup(items):'<div class="su-empty">Nothing here'+(STANDUP_FILTER.q||STANDUP_FILTER.person?' for this filter.':'.')+'</div>'}</div></div>`;
+}
+function suPopulatePeople(d){
+  const sel=$('#su-person'); const cur=STANDUP_FILTER.person;
+  const names=new Set();
+  ['shipped','active','stalled','unassigned'].forEach(k=>(d[k]||[]).forEach(i=>i.assignee&&names.add(i.assignee)));
+  if((d.unassigned||[]).length) names.add('Unassigned');
+  const opts=['<option value="">Everyone</option>'].concat([...names].sort().map(n=>`<option value="${esc(n)}">${esc(n)}</option>`));
+  sel.innerHTML=opts.join(''); sel.value=names.has(cur)||cur===''?cur:''; STANDUP_FILTER.person=sel.value;
+}
 function renderStandup(d){
-  const el=$('#standupbody');
-  const total=(d.shipped||[]).length+(d.active||[]).length+(d.stalled||[]).length+(d.unassigned||[]).length;
-  if(!total){ el.innerHTML='<div class="feedempty">Nothing active on this board right now.</div>'; return; }
+  const el=$('#standupbody'); const f=STANDUP_FILTER;
+  const stalled=suFilt(d.stalled), unassigned=suFilt(d.unassigned), active=suFilt(d.active), shipped=suFilt(d.shipped);
+  const attnCount=stalled.length+unassigned.length;
+  $('#su-count').textContent=`${attnCount} need attention · ${active.length} in progress · ${shipped.length} shipped`;
+  const total=attnCount+active.length+shipped.length;
+  if(!total){ el.innerHTML='<div class="feedempty">'+(f.person||f.q?'Nothing matches this filter.':'Nothing active on this board right now.')+'</div>'; return; }
   let h='';
-  if((d.shipped||[]).length) h+=`<div class="su-lbl">Shipped since yesterday</div>`+suGroup(d.shipped,false);
-  if((d.active||[]).length) h+=`<div class="su-lbl">In progress</div>`+suGroup(d.active,false);
-  if((d.stalled||[]).length) h+=`<div class="su-lbl warn">Needs attention — stalled 5+ days</div><div class="su-flat">`+d.stalled.map(i=>suItem({...i,summary:(i.summary||i.key)+(i.assignee?' · '+i.assignee:'')},true)).join('')+`</div>`;
-  if((d.unassigned||[]).length) h+=`<div class="su-lbl">Unassigned</div><div class="su-flat">`+d.unassigned.map(i=>suItem(i,false)).join('')+`</div>`;
+  // 1) Pinned attention band (stalled first, then unassigned) unless focus narrows past it.
+  if((f.focus==='all'||f.focus==='attn') && attnCount){
+    h+=`<div class="su-attn"><div class="su-attn-h"><span class="mi">priority_high</span>Needs attention`
+      +(stalled.length?`<span class="su-pill">${stalled.length} stalled</span>`:'')
+      +(unassigned.length?`<span class="su-pill idle">${unassigned.length} unassigned</span>`:'')
+      +`</div><div class="su-attn-body">`
+      +stalled.map(i=>suItem(i,{showWho:true,showIdle:true})).join('')
+      +unassigned.map(i=>suItem(i,{showWho:true})).join('')
+      +`</div></div>`;
+  }
+  // 2) Collapsible sections. Active auto-opens when there's no attention band to read first.
+  const activeOpen = STANDUP_EXP.active!==null ? STANDUP_EXP.active : (f.focus==='active' || (!attnCount && f.focus!=='shipped'));
+  const shippedOpen = STANDUP_EXP.shipped!==null ? STANDUP_EXP.shipped : (f.focus==='shipped');
+  if(f.focus==='all'||f.focus==='active') h+=suSection('active','In progress',active,activeOpen);
+  if(f.focus==='all'||f.focus==='shipped') h+=suSection('shipped','Shipped since yesterday',shipped,shippedOpen);
   el.innerHTML=h;
   el.querySelectorAll('.su-item').forEach(x=>x.addEventListener('click',()=>openTreeIssue(x.dataset.k)));
+  el.querySelectorAll('.su-sec-h').forEach(btn=>btn.addEventListener('click',()=>{
+    const sec=btn.closest('.su-sec'), id=sec.dataset.sec; sec.classList.toggle('open');
+    STANDUP_EXP[id]=sec.classList.contains('open');
+  }));
 }
 function standupMarkdown(d){
   const pn=projName(STANDUP_PROJ)||STANDUP_PROJ;
@@ -1280,6 +1358,9 @@ function standupMarkdown(d){
 }
 $('#standupproj').addEventListener('change',e=>{ STANDUP_PROJ=e.target.value; loadStandup(); });
 $('#standuprefresh').addEventListener('click',loadStandup);
+$('#su-person').addEventListener('change',e=>{ STANDUP_FILTER.person=e.target.value; if(STANDUP_DATA)renderStandup(STANDUP_DATA); });
+$('#su-focus').addEventListener('change',e=>{ STANDUP_FILTER.focus=e.target.value; STANDUP_EXP.active=null; STANDUP_EXP.shipped=null; if(STANDUP_DATA)renderStandup(STANDUP_DATA); });
+$('#su-q').addEventListener('input',e=>{ STANDUP_FILTER.q=e.target.value; if(STANDUP_DATA)renderStandup(STANDUP_DATA); });
 $('#standuppost').addEventListener('click',async()=>{
   if(!STANDUP_DATA||!STANDUP_PROJ){ alert('Pick a board first.'); return; }
   if(!confirm('Post this standup to '+(projName(STANDUP_PROJ)||STANDUP_PROJ)+'? It becomes a JIRA issue on the board.')) return;

@@ -293,6 +293,7 @@ async fn main() {
         .route("/hook/{token}", post(hook))
         .route("/jira/hook/{secret}", post(jira_hook))
         .route("/jira/webhook", get(jira_webhook_info))
+        .route("/jira/users", get(jira_users))
         .route("/unfurl", get(unfurl))
         .route("/sprints", get(sprints))
         .route("/sprint/assign", post(sprint_assign))
@@ -1207,6 +1208,11 @@ async fn jira_hook(State(s): State<Shared>, Path(secret): Path<String>, Json(v):
             let pkey = f["parent"]["key"].as_str().unwrap_or("");
             let psum = f["parent"]["fields"]["summary"].as_str().unwrap_or("");
             let reporter = f["reporter"]["displayName"].as_str().unwrap_or("JIRA").to_string();
+            for who in [&f["reporter"], &f["assignee"]] {
+                if let Some((id, nm, av)) = weavn::jira::real::person_triple(who) {
+                    let _ = weavn_store::jira_user_upsert(&s.pool, &ws, &id, &nm, &av).await;
+                }
+            }
             let created_ts = parse_jira_ts(f["created"].as_str().unwrap_or("")).unwrap_or_else(unix_now);
             if !weavn_store::issue_exists(&s.pool, &ws, &key).await.unwrap_or(false) {
                 let _ = weavn_store::message_insert_at(&s.pool, &ws, &channel, &key, None, &reporter, &body, true, false, created_ts).await;
@@ -1218,6 +1224,9 @@ async fn jira_hook(State(s): State<Shared>, Path(secret): Path<String>, Json(v):
         "comment_created" | "comment_updated" => {
             let c = &v["comment"];
             let author = c["author"]["displayName"].as_str().unwrap_or("JIRA").to_string();
+            if let Some((id, nm, av)) = weavn::jira::real::person_triple(&c["author"]) {
+                let _ = weavn_store::jira_user_upsert(&s.pool, &ws, &id, &nm, &av).await;
+            }
             let cbody = if c["body"].is_string() { c["body"].as_str().unwrap_or("").to_string() } else { weavn::format::adf_to_mrkdwn(&c["body"]) };
             let cts = parse_jira_ts(c["created"].as_str().unwrap_or("")).unwrap_or_else(unix_now);
             if !cbody.is_empty() && !weavn_store::comment_exists(&s.pool, &ws, &key, &cbody).await.unwrap_or(false) {
@@ -1237,6 +1246,18 @@ async fn jira_webhook_info(State(s): State<Shared>, headers: HeaderMap) -> Resul
     let secret = weavn_store::jira_webhook_ensure(&s.pool, &ws, &gen_token()).await.map_err(db_err)?;
     let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("app.weavn.io");
     Ok(Json(serde_json::json!({ "url": format!("https://{host}/jira/hook/{secret}"), "secret": secret })))
+}
+
+/// Map of display name → avatar URL for everyone we've seen in this workspace, so the
+/// SPA can render real JIRA faces (falling back to initials for anyone unknown).
+async fn jira_users(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<serde_json::Value>, ApiError> {
+    let (ws, _user) = user_ctx(&s, &headers)?;
+    let rows = weavn_store::jira_user_map(&s.pool, &ws).await.map_err(db_err)?;
+    let mut map = serde_json::Map::new();
+    for (name, url) in rows {
+        map.insert(name, serde_json::Value::String(url));
+    }
+    Ok(Json(serde_json::Value::Object(map)))
 }
 
 /// One issue in the "Catch me up" brief, with how long it's been idle.
@@ -1914,6 +1935,9 @@ async fn backfill(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<Bac
     let mut added = 0usize;
     let mut redated = 0usize;
     for iss in issues {
+        for (id, nm, av) in &iss.people {
+            weavn_store::jira_user_upsert(&s.pool, &ws, id, nm, av).await.map_err(db_err)?;
+        }
         let p_key = (!iss.parent_key.is_empty()).then_some(iss.parent_key.as_str());
         let p_sum = (!iss.parent_summary.is_empty()).then_some(iss.parent_summary.as_str());
         if weavn_store::issue_exists(&s.pool, &ws, &iss.key).await.map_err(db_err)? {

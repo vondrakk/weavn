@@ -85,6 +85,36 @@ pub async fn comment_exists(pool: &PgPool, workspace: &str, issue: &str, body: &
     .await
 }
 
+/// Remember a JIRA person's display name + avatar URL (seen in a webhook, backfill,
+/// or issue fetch). Idempotent; refreshes the name/photo if either changed.
+pub async fn jira_user_upsert(pool: &PgPool, workspace: &str, account_id: &str, display_name: &str, avatar_url: &str) -> sqlx::Result<()> {
+    if account_id.is_empty() || display_name.is_empty() || avatar_url.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        "insert into jira_user (workspace, account_id, display_name, avatar_url) values ($1, $2, $3, $4) \
+         on conflict (workspace, account_id) do update set display_name = excluded.display_name, avatar_url = excluded.avatar_url, updated_at = now()",
+    )
+    .bind(workspace)
+    .bind(account_id)
+    .bind(display_name)
+    .bind(avatar_url)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Every known (display_name, avatar_url) for a workspace, for the SPA to resolve
+/// authors to avatars. Newest-seen wins when a name is shared.
+pub async fn jira_user_map(pool: &PgPool, workspace: &str) -> sqlx::Result<Vec<(String, String)>> {
+    sqlx::query_as::<_, (String, String)>(
+        "select display_name, avatar_url from jira_user where workspace = $1 order by updated_at asc",
+    )
+    .bind(workspace)
+    .fetch_all(pool)
+    .await
+}
+
 /// Per-user preference value (workspace + user + key). `None` if unset.
 pub async fn user_pref_get(pool: &PgPool, workspace: &str, user: &str, key: &str) -> sqlx::Result<Option<String>> {
     sqlx::query_scalar::<_, String>("select value from user_pref where workspace = $1 and user_id = $2 and key = $3")
