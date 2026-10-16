@@ -548,6 +548,9 @@ pub mod real {
         pub active: Vec<BriefRow>,
         pub stalled: Vec<BriefRow>,
         pub unassigned: Vec<BriefRow>,
+        /// (accountId, displayName, avatarUrl) for every assignee seen in this
+        /// rollup, so the gateway can cache faces on standup open.
+        pub people: Vec<(String, String, String)>,
     }
 
     /// An epic in the Projects→Epics→Stories browser.
@@ -824,15 +827,30 @@ pub mod real {
         pub fn team_standup(&self, project: &str) -> Result<TeamStandup, String> {
             let f = "summary,status,updated,assignee";
             let p = project;
+            let shipped = self.search(
+                &format!("project = \"{p}\" AND statusCategory = Done AND updated >= \"-1d\" ORDER BY assignee ASC"), f, 40)?;
+            let active = self.search(
+                &format!("project = \"{p}\" AND statusCategory = \"In Progress\" ORDER BY assignee ASC"), f, 60)?;
+            let stalled = self.search(
+                &format!("project = \"{p}\" AND statusCategory = \"In Progress\" AND updated <= \"-5d\" ORDER BY updated ASC"), f, 30)?;
+            let unassigned = self.search(
+                &format!("project = \"{p}\" AND assignee is EMPTY AND statusCategory != Done ORDER BY updated DESC"), f, 30)?;
+            // Harvest every assignee's avatar once, deduped by accountId.
+            let mut seen = std::collections::HashSet::new();
+            let mut people = Vec::new();
+            for grp in [&shipped, &active, &stalled, &unassigned] {
+                for i in grp {
+                    if let Some(t) = person_triple(&i["fields"]["assignee"]) {
+                        if seen.insert(t.0.clone()) { people.push(t); }
+                    }
+                }
+            }
             Ok(TeamStandup {
-                shipped: Self::brief_rows(&self.search(
-                    &format!("project = \"{p}\" AND statusCategory = Done AND updated >= \"-1d\" ORDER BY assignee ASC"), f, 40)?),
-                active: Self::brief_rows(&self.search(
-                    &format!("project = \"{p}\" AND statusCategory = \"In Progress\" ORDER BY assignee ASC"), f, 60)?),
-                stalled: Self::brief_rows(&self.search(
-                    &format!("project = \"{p}\" AND statusCategory = \"In Progress\" AND updated <= \"-5d\" ORDER BY updated ASC"), f, 30)?),
-                unassigned: Self::brief_rows(&self.search(
-                    &format!("project = \"{p}\" AND assignee is EMPTY AND statusCategory != Done ORDER BY updated DESC"), f, 30)?),
+                shipped: Self::brief_rows(&shipped),
+                active: Self::brief_rows(&active),
+                stalled: Self::brief_rows(&stalled),
+                unassigned: Self::brief_rows(&unassigned),
+                people,
             })
         }
 

@@ -1323,12 +1323,16 @@ struct StandupResp {
 }
 /// Team auto-standup for a project — the same signal engine, team-wide.
 async fn standup(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<ProjQuery>) -> Result<Json<StandupResp>, ApiError> {
-    let (creds, _author, _ws) = jira_session(&s, &headers)?;
+    let (creds, _author, ws) = jira_session(&s, &headers)?;
     let proj = q.project.clone();
     let st = blocking(move || {
         RealBackend::from_parts(&creds.base, creds.email.as_deref(), &creds.token, creds.bearer).team_standup(&proj)
     })
     .await?;
+    // Cache the faces we just saw, so /jira/users (fetched right after) has them.
+    for (id, nm, av) in &st.people {
+        weavn_store::jira_user_upsert(&s.pool, &ws, id, nm, av).await.map_err(db_err)?;
+    }
     let now = unix_now();
     let conv = |rows: Vec<weavn::jira::real::BriefRow>| -> Vec<StandupItem> {
         rows.into_iter()
