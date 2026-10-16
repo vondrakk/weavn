@@ -370,9 +370,12 @@
   .fitem{display:flex;gap:11px;padding:11px 18px;cursor:pointer;border-bottom:1px solid var(--border)}
   .fitem:hover{background:var(--accent-weak)}
   .fitem.unread{background:var(--accent-weak)}
-  .fitem .fav{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px;flex:none}
+  .fitem .fav{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px;flex:none;object-fit:cover}
   .fitem .fmain{min-width:0;flex:1}
-  .fitem .ftop{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .fitem .ftop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .fitem .ftop .su-act{margin-left:auto}
+  .fitem:hover .su-act,.fitem:focus-within .su-act{opacity:1}
+  .fitem .rowreply{margin-left:0}
   .fitem .fa{font-weight:600}
   .fitem .fch{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-weak);border-radius:5px;padding:1px 6px}
   .fitem .fkind{color:var(--muted);font-size:12px}
@@ -1348,12 +1351,29 @@ function suItem(i,opt){ opt=opt||{};
     +`<span class="si-nm">${esc(i.summary||i.key)}</span>`
     +suMeta(i,opt)
     +`<span class="si-k">${esc(i.key)}</span>`
-    +`<span class="su-act">`
-      +`<button type="button" class="su-ab" data-act="move" title="Move / transition"><span class="mi">arrow_forward</span></button>`
-      +`<button type="button" class="su-ab" data-act="claim" title="Assign to me"><span class="mi">person_add</span></button>`
-      +`<button type="button" class="su-ab" data-act="reply" title="Reply (posts a JIRA comment)"><span class="mi">reply</span></button>`
-      +`<button type="button" class="su-ab" data-act="open" title="Open conversation"><span class="mi">open_in_full</span></button>`
-    +`</span></div>`;
+    +actionRail()+`</div>`;
+}
+// The per-line action rail — reused across the standup, the For-You stream, and the
+// threads feed so every ticket line is actionable in-flow.
+function actionRail(){ return `<span class="su-act">`
+  +`<button type="button" class="su-ab" data-act="move" title="Move / transition"><span class="mi">arrow_forward</span></button>`
+  +`<button type="button" class="su-ab" data-act="claim" title="Assign to me"><span class="mi">person_add</span></button>`
+  +`<button type="button" class="su-ab" data-act="reply" title="Reply (posts a JIRA comment)"><span class="mi">reply</span></button>`
+  +`<button type="button" class="su-ab" data-act="open" title="Open conversation"><span class="mi">open_in_full</span></button>`
+  +`</span>`; }
+// Attach rail handlers inside a container; rows carry the issue key on data-k or data-issue.
+function wireRail(root, rowSel){
+  root.querySelectorAll('.su-ab').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation();
+    const row=b.closest(rowSel), key=row.dataset.k||row.dataset.issue, act=b.dataset.act;
+    if(!key)return;
+    if(act==='open')openTreeIssue(key); else if(act==='claim')rowClaim(key); else if(act==='move')rowMove(key,b); else if(act==='reply')rowReply(key,row); }));
+}
+// Reload whichever feed is in view after a write-back, plus any open issue pane.
+function afterRowAction(){
+  if(VIEW==='standup')loadStandup(); else if(VIEW==='stream')loadStream();
+  else if(VIEW==='threads')loadThreadsFeed(); else if(VIEW==='activity')loadActivityFeed();
+  else if(VIEW==='updates')loadChannel();
+  if(TREEISSUE&&TREEISSUE.issue_key) openTreeIssue(TREEISSUE.issue_key);
 }
 // Per-line actions — the same suggest-and-confirm write-back rail, but each click on a
 // specific choice IS the confirm, and every write is reversible via the undo toast.
@@ -1361,14 +1381,14 @@ function closeRowPops(){ document.querySelectorAll('.rowmenu').forEach(m=>m.remo
 async function rowClaim(key){
   const r=await api('/assign',{method:'POST',body:JSON.stringify({issue:key})});
   if(!r.ok){ alert('Assign failed: '+await r.text()); return; }
-  wbToast('Assigned '+key+' to you', ()=>{ api('/assign',{method:'POST',body:JSON.stringify({issue:key,account:''})}).then(loadStandup); });
-  loadStandup();
+  wbToast('Assigned '+key+' to you', ()=>{ api('/assign',{method:'POST',body:JSON.stringify({issue:key,account:''})}).then(afterRowAction); });
+  afterRowAction();
 }
 async function rowMove(key, btn){
   closeRowPops();
   let list=[]; try{const r=await api('/transitions?issue='+encodeURIComponent(key)); if(r.ok)list=await r.json();}catch(e){}
   if(!list.length){ wbToast('No transitions available on '+key, null); return; }
-  const prev=btn.closest('.su-item')?.dataset.st||'';
+  const prev=btn.closest('.su-item,.fitem')?.dataset.st||'';
   const menu=document.createElement('div'); menu.className='rowmenu';
   menu.innerHTML=`<div class="rm-h">Move ${esc(key)} to…</div>`+list.map(t=>`<button type="button" data-to="${esc(t)}"><span class="dot ${statusClass(t)==='done'?'catdot-done':(statusClass(t)==='prog'?'catdot-prog':'catdot-todo')}"></span>${esc(t)}</button>`).join('');
   document.body.appendChild(menu);
@@ -1378,7 +1398,7 @@ async function rowMove(key, btn){
   menu.querySelectorAll('button[data-to]').forEach(mb=>mb.onclick=async()=>{ const to=mb.dataset.to; menu.remove();
     const r=await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to})}); WB_TR_CACHE[key]=null;
     if(!r.ok){ alert('Move failed: '+await r.text()); return; }
-    wbToast('Moved '+key+' to '+to, prev?()=>rowMoveBack(key,prev):null); loadStandup();
+    wbToast('Moved '+key+' to '+to, prev?()=>rowMoveBack(key,prev):null); afterRowAction();
   });
   setTimeout(()=>document.addEventListener('click',function off(e){ if(!menu.contains(e.target)){menu.remove();document.removeEventListener('click',off);} }),0);
 }
@@ -1386,7 +1406,7 @@ async function rowMoveBack(key,prev){ WB_TR_CACHE[key]=null;
   let list=[]; try{const r=await api('/transitions?issue='+encodeURIComponent(key)); if(r.ok)list=await r.json();}catch(e){}
   const back=list.find(t=>t.toLowerCase()===prev.toLowerCase());
   if(!back){ alert('Can’t undo automatically — no transition back to “'+prev+'”.'); return; }
-  await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:back})}); WB_TR_CACHE[key]=null; loadStandup();
+  await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:back})}); WB_TR_CACHE[key]=null; afterRowAction();
 }
 function rowReply(key, itemEl){
   const nxt=itemEl.nextElementSibling;
@@ -1441,8 +1461,7 @@ function renderStandup(d){
   if(f.focus==='all'||f.focus==='shipped') h+=suSection('shipped','Shipped since yesterday',shipped,shippedOpen);
   el.innerHTML=h;
   el.querySelectorAll('.su-item').forEach(x=>x.addEventListener('click',e=>{ if(e.target.closest('.su-act')||e.target.closest('.rowreply'))return; openTreeIssue(x.dataset.k); }));
-  el.querySelectorAll('.su-ab').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); const row=b.closest('.su-item'), key=row.dataset.k, act=b.dataset.act;
-    if(act==='open')openTreeIssue(key); else if(act==='claim')rowClaim(key); else if(act==='move')rowMove(key,b); else if(act==='reply')rowReply(key,row); }));
+  wireRail(el,'.su-item');
   el.querySelectorAll('.su-sec-h').forEach(btn=>btn.addEventListener('click',()=>{
     const sec=btn.closest('.su-sec'), id=sec.dataset.sec; sec.classList.toggle('open');
     STANDUP_EXP[id]=sec.classList.contains('open');
@@ -1599,14 +1618,15 @@ function renderStreamFeed(){
   $('#streamcount').textContent=a.length?`${a.length} item${a.length===1?'':'s'}`:'';
   syncStreamComposer();
   if(!a.length){ el.innerHTML=`<div class="feedempty">${STREAM_SCOPE==='following'&&!savedFilters().length?'Follow boards or save views to populate Following. Facet the stream and hit the bookmark to save it.':(STREAM.length?'Nothing matches this filter.':'No activity yet — post something or open a board to pull it in.')}</div>`; return; }
-  el.innerHTML=a.map(it=>`<div class="fitem" data-issue="${esc(it.issue_key)}" data-ch="${esc(it.channel)}">
-      <div class="fav">${esc(initials(it.author))}</div>
+  el.innerHTML=a.map(it=>`<div class="fitem" data-issue="${esc(it.issue_key)}" data-ch="${esc(it.channel)}" data-st="${esc(it.status||'')}">
+      ${avatarEl(it.author,'fav')}
       <div class="fmain">
-        <div class="ftop"><span class="fa">${esc(it.author)}</span><span class="fkindchip ${esc(it.kind)}">${fmtStreamKind(it.kind)}</span><span class="fch">#${esc(it.channel)}</span>${it.status?`<span class="sdot ${statusClass(it.status)}" style="cursor:default"><span class="dot"></span>${esc(it.status)}</span>`:''}<span class="ftime">${esc(fmtTime(it.ts))}</span></div>
+        <div class="ftop"><span class="fa">${esc(it.author)}</span><span class="fkindchip ${esc(it.kind)}">${fmtStreamKind(it.kind)}</span><span class="fch">#${esc(it.channel)}</span>${it.status?`<span class="sdot ${statusClass(it.status)}" style="cursor:default"><span class="dot"></span>${esc(it.status)}</span>`:''}<span class="ftime">${esc(fmtTime(it.ts))}</span>${it.issue_key?actionRail():''}</div>
         <div class="fbody">${esc(it.snippet)}</div>
       </div>
     </div>`).join('');
-  el.querySelectorAll('.fitem').forEach(f=>f.addEventListener('click',()=>openTreeIssue(f.dataset.issue)));
+  el.querySelectorAll('.fitem').forEach(f=>f.addEventListener('click',e=>{ if(e.target.closest('.su-act')||e.target.closest('.rowreply'))return; openTreeIssue(f.dataset.issue); }));
+  wireRail(el,'.fitem');
   el.scrollTop=el.scrollHeight; // newest is at the bottom — land there
 }
 $('#streamscope').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ STREAM_SCOPE=b.dataset.s; $('#streamscope').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); renderStreamFeed(); }));
@@ -1650,16 +1670,17 @@ async function loadThreadsFeed(){
   const el=$('#threadsfeed'); el.innerHTML='<div class="feedempty"><span class="spin"></span>Loading threads…</div>';
   let items=[]; try{const r=await api('/threads'); if(r.ok)items=await r.json();}catch(e){}
   if(!items.length){el.innerHTML='<div class="feedempty">No threaded conversations yet. Reply to a message to start one.</div>';return;}
-  el.innerHTML=items.map(t=>`<div class="fitem" data-ch="${esc(t.channel)}" data-issue="${esc(t.issue_key)}">
-      <div class="fav">${esc(initials(t.root_author))}</div>
+  el.innerHTML=items.map(t=>`<div class="fitem" data-ch="${esc(t.channel)}" data-issue="${esc(t.issue_key)}" data-st="${esc(t.status||'')}">
+      ${avatarEl(t.root_author,'fav')}
       <div class="fmain">
-        <div class="ftop"><span class="fch">#${esc(t.channel)}</span><span class="fa">${esc(t.root_author)}</span><span class="ftime">${esc(fmtTime(t.ts))}</span></div>
+        <div class="ftop"><span class="fch">#${esc(t.channel)}</span><span class="fa">${esc(t.root_author)}</span><span class="ftime">${esc(fmtTime(t.ts))}</span>${t.issue_key?actionRail():''}</div>
         <div class="fbody">${esc(t.snippet)}</div>
         <div class="flast"><b>${esc(t.last_author)}:</b> ${esc(t.last_snippet)}</div>
         <div class="frep"><span class="mi">forum</span> ${t.replies} repl${t.replies===1?'y':'ies'}</div>
       </div>
     </div>`).join('');
-  el.querySelectorAll('.fitem').forEach(it=>it.addEventListener('click',()=>jumpTo(it.dataset.ch,it.dataset.issue)));
+  el.querySelectorAll('.fitem').forEach(it=>it.addEventListener('click',e=>{ if(e.target.closest('.su-act')||e.target.closest('.rowreply'))return; jumpTo(it.dataset.ch,it.dataset.issue); }));
+  wireRail(el,'.fitem');
 }
 async function loadActivityFeed(){
   const el=$('#activityfeed'); el.innerHTML='<div class="feedempty"><span class="spin"></span>Loading activity…</div>';
