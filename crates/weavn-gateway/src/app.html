@@ -310,6 +310,34 @@
   .su-item .si-k{font-family:var(--mono);font-size:10px;color:var(--faint)}
   .su-item .si-idle{color:#c8921a;font-size:11px;font-weight:600;white-space:nowrap}
   .su-empty{color:var(--faint);font-size:12px;padding:16px;text-align:center}
+  .su-item .si-who{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:11px;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+  .mav{width:17px;height:17px;border-radius:5px;background:var(--accent);color:#fff;display:inline-grid;place-items:center;font-size:8px;font-weight:700;flex:none;object-fit:cover}
+  /* inline metadata chips */
+  .mchip{display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:0 5px;line-height:1.6;white-space:nowrap}
+  .mchip .mi{font-size:12px;vertical-align:0}
+  .mchip.ago{border-color:transparent;background:transparent;color:var(--faint)}
+  .mchip.prio{padding:0 3px}
+  .mchip.prio-highest,.mchip.prio-high{color:#d4493f;border-color:color-mix(in srgb,#d4493f 35%,var(--border))}
+  .mchip.prio-low,.mchip.prio-lowest{color:#5b8fb0}
+  .mchip.due.over{color:#d4493f;border-color:color-mix(in srgb,#d4493f 40%,var(--border));background:color-mix(in srgb,#d4493f 8%,var(--bg))}
+  .mchip.lbl{color:var(--accent)}
+  /* hover action rail */
+  .su-act{display:inline-flex;gap:1px;margin-left:2px;opacity:0;transition:opacity .1s;flex:none}
+  .su-item:hover .su-act,.su-item:focus-within .su-act{opacity:1}
+  .su-ab{border:0;background:transparent;color:var(--muted);border-radius:6px;width:26px;height:24px;display:grid;place-items:center;cursor:pointer;padding:0}
+  .su-ab .mi{font-size:16px}
+  .su-ab:hover{background:var(--accent-weak);color:var(--accent)}
+  /* transition picker popover */
+  .rowmenu{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,.32);padding:5px;min-width:180px}
+  .rowmenu .rm-h{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);padding:4px 8px 5px}
+  .rowmenu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:6px 8px;border-radius:7px;cursor:pointer}
+  .rowmenu button:hover{background:var(--accent-weak)}
+  .rowmenu .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  /* inline per-line reply composer */
+  .rowreply{display:flex;align-items:center;gap:7px;margin:1px 16px 6px 34px;padding:4px 6px;background:var(--bg);border:1px solid var(--accent);border-radius:9px}
+  .rowreply .mi{color:var(--accent);font-size:16px}
+  .rowreply input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;outline:none}
+  .rowreply .rr-send{border:0;background:var(--accent);color:#fff;border-radius:7px;padding:4px 11px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
   /* "Catch me up" brief — ambient, confirmable IC digest atop the stream */
   .brief{border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--accent) 4%,var(--surface));padding:10px 16px 12px;flex:none}
   .brief.hidden{display:none}
@@ -1302,7 +1330,80 @@ const STANDUP_FILTER={person:'',focus:'all',q:''};
 const STANDUP_EXP={active:null,shipped:null};
 function suMatchQ(i){ const q=STANDUP_FILTER.q.toLowerCase().trim(); if(!q)return true; return (i.summary||'').toLowerCase().includes(q)||(i.key||'').toLowerCase().includes(q); }
 function suFilt(items){ return (items||[]).filter(i=>{ if(STANDUP_FILTER.person && (i.assignee||'Unassigned')!==STANDUP_FILTER.person) return false; return suMatchQ(i); }); }
-function suItem(i,opt){ opt=opt||{}; return `<div class="su-item" data-k="${esc(i.key)}" title="${esc(i.summary||i.key)}"><span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span><span class="si-nm">${esc(i.summary||i.key)}</span>${opt.showWho?`<span class="si-who">${esc(i.assignee||'Unassigned')}</span>`:''}${opt.showIdle&&i.idle_days?`<span class="si-idle">idle ${i.idle_days}d</span>`:''}<span class="si-k">${esc(i.key)}</span></div>`; }
+function relAgo(ts){ if(!ts)return ''; const s=Math.max(0,Math.floor(Date.now()/1000)-ts); if(s<3600)return Math.max(1,Math.floor(s/60))+'m'; if(s<86400)return Math.floor(s/3600)+'h'; if(s<604800)return Math.floor(s/86400)+'d'; return Math.floor(s/604800)+'w'; }
+const PRIO_ICON={highest:'keyboard_double_arrow_up',high:'keyboard_arrow_up',medium:'drag_handle',low:'keyboard_arrow_down',lowest:'keyboard_double_arrow_down'};
+function suMeta(i,opt){ let m='';
+  if(opt.showWho){ const who=i.assignee||'Unassigned'; m+=`<span class="si-who">${avatarEl(who,'mav')}${esc(who)}</span>`; }
+  if(i.priority){ const p=i.priority.toLowerCase().replace(/[^a-z]/g,''); m+=`<span class="mchip prio prio-${esc(p)}" title="Priority: ${esc(i.priority)}"><span class="mi">${PRIO_ICON[p]||'drag_handle'}</span></span>`; }
+  if(i.due){ const over=i.due<new Date().toISOString().slice(0,10); m+=`<span class="mchip due${over?' over':''}" title="Due ${esc(i.due)}${over?' — overdue':''}"><span class="mi">event</span>${esc(i.due.slice(5))}</span>`; }
+  if(i.labels&&i.labels.length) m+=`<span class="mchip lbl" title="${esc(i.labels.join(', '))}"><span class="mi">sell</span>${i.labels.length}</span>`;
+  if(opt.showIdle&&i.idle_days) m+=`<span class="si-idle" title="No movement in ${i.idle_days} days">idle ${i.idle_days}d</span>`;
+  else if(i.updated_ts) m+=`<span class="mchip ago" title="Last updated">${relAgo(i.updated_ts)}</span>`;
+  return m;
+}
+function suItem(i,opt){ opt=opt||{};
+  return `<div class="su-item" data-k="${esc(i.key)}" data-st="${esc(i.status||'')}" title="${esc(i.summary||i.key)}">`
+    +`<span class="sdot ${statusClass(i.status)}" style="cursor:default"><span class="dot"></span></span>`
+    +typeChip(i.issue_type)
+    +`<span class="si-nm">${esc(i.summary||i.key)}</span>`
+    +suMeta(i,opt)
+    +`<span class="si-k">${esc(i.key)}</span>`
+    +`<span class="su-act">`
+      +`<button type="button" class="su-ab" data-act="move" title="Move / transition"><span class="mi">arrow_forward</span></button>`
+      +`<button type="button" class="su-ab" data-act="claim" title="Assign to me"><span class="mi">person_add</span></button>`
+      +`<button type="button" class="su-ab" data-act="reply" title="Reply (posts a JIRA comment)"><span class="mi">reply</span></button>`
+      +`<button type="button" class="su-ab" data-act="open" title="Open conversation"><span class="mi">open_in_full</span></button>`
+    +`</span></div>`;
+}
+// Per-line actions — the same suggest-and-confirm write-back rail, but each click on a
+// specific choice IS the confirm, and every write is reversible via the undo toast.
+function closeRowPops(){ document.querySelectorAll('.rowmenu').forEach(m=>m.remove()); }
+async function rowClaim(key){
+  const r=await api('/assign',{method:'POST',body:JSON.stringify({issue:key})});
+  if(!r.ok){ alert('Assign failed: '+await r.text()); return; }
+  wbToast('Assigned '+key+' to you', ()=>{ api('/assign',{method:'POST',body:JSON.stringify({issue:key,account:''})}).then(loadStandup); });
+  loadStandup();
+}
+async function rowMove(key, btn){
+  closeRowPops();
+  let list=[]; try{const r=await api('/transitions?issue='+encodeURIComponent(key)); if(r.ok)list=await r.json();}catch(e){}
+  if(!list.length){ wbToast('No transitions available on '+key, null); return; }
+  const prev=btn.closest('.su-item')?.dataset.st||'';
+  const menu=document.createElement('div'); menu.className='rowmenu';
+  menu.innerHTML=`<div class="rm-h">Move ${esc(key)} to…</div>`+list.map(t=>`<button type="button" data-to="${esc(t)}"><span class="dot ${statusClass(t)==='done'?'catdot-done':(statusClass(t)==='prog'?'catdot-prog':'catdot-todo')}"></span>${esc(t)}</button>`).join('');
+  document.body.appendChild(menu);
+  const b=btn.getBoundingClientRect();
+  menu.style.left=Math.max(8,Math.min(b.right-190,window.innerWidth-200))+'px';
+  menu.style.top=(Math.min(b.bottom+4,window.innerHeight-10))+'px';
+  menu.querySelectorAll('button[data-to]').forEach(mb=>mb.onclick=async()=>{ const to=mb.dataset.to; menu.remove();
+    const r=await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to})}); WB_TR_CACHE[key]=null;
+    if(!r.ok){ alert('Move failed: '+await r.text()); return; }
+    wbToast('Moved '+key+' to '+to, prev?()=>rowMoveBack(key,prev):null); loadStandup();
+  });
+  setTimeout(()=>document.addEventListener('click',function off(e){ if(!menu.contains(e.target)){menu.remove();document.removeEventListener('click',off);} }),0);
+}
+async function rowMoveBack(key,prev){ WB_TR_CACHE[key]=null;
+  let list=[]; try{const r=await api('/transitions?issue='+encodeURIComponent(key)); if(r.ok)list=await r.json();}catch(e){}
+  const back=list.find(t=>t.toLowerCase()===prev.toLowerCase());
+  if(!back){ alert('Can’t undo automatically — no transition back to “'+prev+'”.'); return; }
+  await api('/transition',{method:'POST',body:JSON.stringify({issue:key,to:back})}); WB_TR_CACHE[key]=null; loadStandup();
+}
+function rowReply(key, itemEl){
+  const nxt=itemEl.nextElementSibling;
+  if(nxt && nxt.classList.contains('rowreply')){ nxt.remove(); return; }
+  document.querySelectorAll('.rowreply').forEach(x=>x.remove());
+  const box=document.createElement('div'); box.className='rowreply';
+  box.innerHTML=`<span class="mi">reply</span><input type="text" placeholder="Reply to ${esc(key)} — posts a JIRA comment… (Enter to send)"><button type="button" class="rr-send">Send</button>`;
+  itemEl.insertAdjacentElement('afterend', box);
+  const inp=box.querySelector('input'); inp.focus();
+  const send=async()=>{ const body=inp.value.trim(); if(!body)return; inp.disabled=true;
+    const r=await api('/issue/comment',{method:'POST',body:JSON.stringify({key,body})});
+    if(!r.ok){ inp.disabled=false; alert('Comment failed: '+await r.text()); return; }
+    box.remove(); wbToast('Replied on '+key, null);
+  };
+  box.querySelector('.rr-send').onclick=send;
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();send();} else if(e.key==='Escape')box.remove(); });
+}
 function suGroup(items){ const g=groupByAssignee(items); return Object.keys(g).sort().map(name=>`<div class="su-person"><div class="su-name">${avatarEl(name)}${esc(name)}</div>${g[name].map(i=>suItem(i)).join('')}</div>`).join(''); }
 function suSection(id,title,items,open){
   return `<div class="su-sec${open?' open':''}" data-sec="${id}"><button class="su-sec-h"><span class="mi">chevron_right</span><b>${esc(title)}</b><span class="su-n">${items.length}</span></button><div class="su-sec-body">${items.length?suGroup(items):'<div class="su-empty">Nothing here'+(STANDUP_FILTER.q||STANDUP_FILTER.person?' for this filter.':'.')+'</div>'}</div></div>`;
@@ -1339,7 +1440,9 @@ function renderStandup(d){
   if(f.focus==='all'||f.focus==='active') h+=suSection('active','In progress',active,activeOpen);
   if(f.focus==='all'||f.focus==='shipped') h+=suSection('shipped','Shipped since yesterday',shipped,shippedOpen);
   el.innerHTML=h;
-  el.querySelectorAll('.su-item').forEach(x=>x.addEventListener('click',()=>openTreeIssue(x.dataset.k)));
+  el.querySelectorAll('.su-item').forEach(x=>x.addEventListener('click',e=>{ if(e.target.closest('.su-act')||e.target.closest('.rowreply'))return; openTreeIssue(x.dataset.k); }));
+  el.querySelectorAll('.su-ab').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); const row=b.closest('.su-item'), key=row.dataset.k, act=b.dataset.act;
+    if(act==='open')openTreeIssue(key); else if(act==='claim')rowClaim(key); else if(act==='move')rowMove(key,b); else if(act==='reply')rowReply(key,row); }));
   el.querySelectorAll('.su-sec-h').forEach(btn=>btn.addEventListener('click',()=>{
     const sec=btn.closest('.su-sec'), id=sec.dataset.sec; sec.classList.toggle('open');
     STANDUP_EXP[id]=sec.classList.contains('open');

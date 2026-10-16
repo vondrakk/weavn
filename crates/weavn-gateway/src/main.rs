@@ -1313,6 +1313,11 @@ struct StandupItem {
     status: String,
     assignee: String,
     idle_days: i64,
+    issue_type: String,
+    priority: String,
+    due: String,
+    labels: Vec<String>,
+    updated_ts: i64,
 }
 #[derive(Serialize)]
 struct StandupResp {
@@ -1336,12 +1341,20 @@ async fn standup(State(s): State<Shared>, headers: HeaderMap, Query(q): Query<Pr
     let now = unix_now();
     let conv = |rows: Vec<weavn::jira::real::BriefRow>| -> Vec<StandupItem> {
         rows.into_iter()
-            .map(|r| StandupItem {
-                idle_days: parse_jira_ts(&r.updated).map(|t| ((now - t) / 86400).max(0)).unwrap_or(0),
-                key: r.key,
-                summary: r.summary,
-                status: r.status,
-                assignee: r.assignee,
+            .map(|r| {
+                let updated_ts = parse_jira_ts(&r.updated).unwrap_or(0);
+                StandupItem {
+                    idle_days: if updated_ts > 0 { ((now - updated_ts) / 86400).max(0) } else { 0 },
+                    updated_ts,
+                    key: r.key,
+                    summary: r.summary,
+                    status: r.status,
+                    assignee: r.assignee,
+                    issue_type: r.issue_type,
+                    priority: r.priority,
+                    due: r.due,
+                    labels: r.labels,
+                }
             })
             .collect()
     };

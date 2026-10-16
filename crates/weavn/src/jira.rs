@@ -524,13 +524,18 @@ pub mod real {
         Some((id.to_string(), name.to_string(), av.to_string()))
     }
 
-    /// One issue row in the "Catch me up" brief.
+    /// One issue row in the "Catch me up" brief / team standup, with the metadata
+    /// needed to render a rich, actionable line (priority, due date, type, labels).
     pub struct BriefRow {
         pub key: String,
         pub summary: String,
         pub status: String,
         pub updated: String, // ISO 8601
         pub assignee: String,
+        pub issue_type: String,
+        pub priority: String,
+        pub due: String, // ISO date (YYYY-MM-DD) or ""
+        pub labels: Vec<String>,
     }
 
     /// All signal lists for the "Catch me up" brief.
@@ -791,19 +796,26 @@ pub mod real {
         pub fn brief_rows(jql_issues: &[Value]) -> Vec<BriefRow> {
             jql_issues
                 .iter()
-                .map(|i| BriefRow {
-                    key: i["key"].as_str().unwrap_or("").to_string(),
-                    summary: i["fields"]["summary"].as_str().unwrap_or("").to_string(),
-                    status: i["fields"]["status"]["name"].as_str().unwrap_or("").to_string(),
-                    updated: i["fields"]["updated"].as_str().unwrap_or("").to_string(),
-                    assignee: i["fields"]["assignee"]["displayName"].as_str().unwrap_or("").to_string(),
+                .map(|i| {
+                    let f = &i["fields"];
+                    BriefRow {
+                        key: i["key"].as_str().unwrap_or("").to_string(),
+                        summary: f["summary"].as_str().unwrap_or("").to_string(),
+                        status: f["status"]["name"].as_str().unwrap_or("").to_string(),
+                        updated: f["updated"].as_str().unwrap_or("").to_string(),
+                        assignee: f["assignee"]["displayName"].as_str().unwrap_or("").to_string(),
+                        issue_type: f["issuetype"]["name"].as_str().unwrap_or("").to_string(),
+                        priority: f["priority"]["name"].as_str().unwrap_or("").to_string(),
+                        due: f["duedate"].as_str().unwrap_or("").to_string(),
+                        labels: f["labels"].as_array().map(|a| a.iter().filter_map(|l| l.as_str().map(str::to_string)).collect()).unwrap_or_default(),
+                    }
                 })
                 .collect()
         }
 
         /// The IC "Catch me up" brief, computed from the user's own JIRA via JQL.
         pub fn my_brief(&self) -> Result<MyBrief, String> {
-            let f = "summary,status,updated,assignee";
+            let f = "summary,status,updated,assignee,issuetype,priority,duedate,labels";
             Ok(MyBrief {
                 // stalled in-progress assigned to me
                 drifting: Self::brief_rows(&self.search(
@@ -825,7 +837,7 @@ pub mod real {
 
         /// A team standup rollup for a project (team-wide, not just the caller).
         pub fn team_standup(&self, project: &str) -> Result<TeamStandup, String> {
-            let f = "summary,status,updated,assignee";
+            let f = "summary,status,updated,assignee,issuetype,priority,duedate,labels";
             let p = project;
             let shipped = self.search(
                 &format!("project = \"{p}\" AND statusCategory = Done AND updated >= \"-1d\" ORDER BY assignee ASC"), f, 40)?;
