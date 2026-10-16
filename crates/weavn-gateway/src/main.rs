@@ -294,6 +294,9 @@ async fn main() {
         .route("/jira/hook/{secret}", post(jira_hook))
         .route("/jira/webhook", get(jira_webhook_info))
         .route("/jira/users", get(jira_users))
+        .route("/reactions", get(reactions))
+        .route("/follow", post(follow))
+        .route("/follows", get(follows))
         .route("/unfurl", get(unfurl))
         .route("/sprints", get(sprints))
         .route("/sprint/assign", post(sprint_assign))
@@ -1246,6 +1249,43 @@ async fn jira_webhook_info(State(s): State<Shared>, headers: HeaderMap) -> Resul
     let secret = weavn_store::jira_webhook_ensure(&s.pool, &ws, &gen_token()).await.map_err(db_err)?;
     let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("app.weavn.io");
     Ok(Json(serde_json::json!({ "url": format!("https://{host}/jira/hook/{secret}"), "secret": secret })))
+}
+
+/// All reactions in the workspace, aggregated per issue: [{shortcode, count, mine}].
+/// Lets the stream / standup lines show the same reactions as the thread view.
+async fn reactions(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<serde_json::Value>, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    let rows = weavn_store::reactions_workspace(&s.pool, &ws).await.map_err(db_err)?;
+    // issue_key -> shortcode -> (count, mine)
+    let mut by: std::collections::HashMap<String, std::collections::HashMap<String, (i64, bool)>> = std::collections::HashMap::new();
+    for (issue, shortcode, account) in rows {
+        let e = by.entry(issue).or_default().entry(shortcode).or_insert((0, false));
+        e.0 += 1;
+        if account == user { e.1 = true; }
+    }
+    let mut out = serde_json::Map::new();
+    for (issue, codes) in by {
+        let arr: Vec<serde_json::Value> = codes.into_iter()
+            .map(|(shortcode, (count, mine))| serde_json::json!({ "shortcode": shortcode, "count": count, "mine": mine }))
+            .collect();
+        out.insert(issue, serde_json::Value::Array(arr));
+    }
+    Ok(Json(serde_json::Value::Object(out)))
+}
+
+#[derive(Deserialize)]
+struct FollowReq { issue: String }
+/// Toggle whether the caller follows an issue (surfaces it in their For-You stream).
+async fn follow(State(s): State<Shared>, headers: HeaderMap, Json(r): Json<FollowReq>) -> Result<Json<serde_json::Value>, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    let on = weavn_store::follow_toggle(&s.pool, &ws, &user, &r.issue).await.map_err(db_err)?;
+    Ok(Json(serde_json::json!({ "on": on })))
+}
+
+/// Issue keys the caller follows.
+async fn follows(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Vec<String>>, ApiError> {
+    let (ws, user) = user_ctx(&s, &headers)?;
+    Ok(Json(weavn_store::follows_for(&s.pool, &ws, &user).await.map_err(db_err)?))
 }
 
 /// Map of display name → avatar URL for everyone we've seen in this workspace, so the

@@ -338,6 +338,15 @@
   .rowreply .mi{color:var(--accent);font-size:16px}
   .rowreply input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;outline:none}
   .rowreply .rr-send{border:0;background:var(--accent);color:#fff;border-radius:7px;padding:4px 11px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  /* inline reaction chips on a ticket line */
+  .rxline{display:inline-flex;gap:3px;flex-wrap:wrap;align-items:center;margin-left:4px}
+  .rxline .rchip{font-size:11px;padding:0 6px;line-height:1.7}
+  .fitem .rxline{display:flex;margin:5px 0 0}
+  .su-ab.on{color:var(--accent)}
+  /* emoji picker popover (reuses .rowmenu shell) */
+  .rxpick{display:flex;flex-wrap:wrap;gap:1px;max-width:224px;padding:6px;min-width:0}
+  .rxpick button{border:0;background:transparent;font-size:17px;cursor:pointer;border-radius:6px;padding:3px 4px;line-height:1}
+  .rxpick button:hover{background:var(--accent-weak)}
   /* "Catch me up" brief — ambient, confirmable IC digest atop the stream */
   .brief{border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--accent) 4%,var(--surface));padding:10px 16px 12px;flex:none}
   .brief.hidden{display:none}
@@ -1321,7 +1330,7 @@ async function loadStandup(){
   $('#standupbody').innerHTML='<div class="feedempty"><span class="spin"></span>Generating standup…</div>';
   STANDUP_EXP.active=null; STANDUP_EXP.shipped=null; // fresh board → auto expand rules
   try{const r=await api('/standup?project='+encodeURIComponent(STANDUP_PROJ)); if(!r.ok){$('#standupbody').innerHTML='<div class="feedempty">'+esc(await r.text())+'</div>';return;} STANDUP_DATA=await r.json();}catch(e){$('#standupbody').innerHTML='<div class="feedempty">Network error.</div>';return;}
-  loadAvatars().then(()=>{ if(VIEW==='standup'&&STANDUP_DATA)renderStandup(STANDUP_DATA); });
+  Promise.all([loadAvatars(),loadSocial()]).then(()=>{ if(VIEW==='standup'&&STANDUP_DATA)renderStandup(STANDUP_DATA); });
   $('#sutoolbar').classList.remove('hidden');
   suPopulatePeople(STANDUP_DATA);
   renderStandup(STANDUP_DATA);
@@ -1351,14 +1360,18 @@ function suItem(i,opt){ opt=opt||{};
     +`<span class="si-nm">${esc(i.summary||i.key)}</span>`
     +suMeta(i,opt)
     +`<span class="si-k">${esc(i.key)}</span>`
-    +actionRail()+`</div>`;
+    +rxChips(i.key)
+    +actionRail(i.key)+`</div>`;
 }
 // The per-line action rail — reused across the standup, the For-You stream, and the
 // threads feed so every ticket line is actionable in-flow.
-function actionRail(){ return `<span class="su-act">`
+function actionRail(key){ const following=key&&FOLLOWS.has(key);
+  return `<span class="su-act">`
+  +`<button type="button" class="su-ab" data-act="react" title="React"><span class="mi">add_reaction</span></button>`
+  +`<button type="button" class="su-ab" data-act="reply" title="Reply (posts a JIRA comment)"><span class="mi">reply</span></button>`
   +`<button type="button" class="su-ab" data-act="move" title="Move / transition"><span class="mi">arrow_forward</span></button>`
   +`<button type="button" class="su-ab" data-act="claim" title="Assign to me"><span class="mi">person_add</span></button>`
-  +`<button type="button" class="su-ab" data-act="reply" title="Reply (posts a JIRA comment)"><span class="mi">reply</span></button>`
+  +`<button type="button" class="su-ab${following?' on':''}" data-act="follow" title="${following?'Following — click to unfollow':'Follow (adds to your For-You)'}"><span class="mi${following?' filled':''}">${following?'visibility':'visibility'}</span></button>`
   +`<button type="button" class="su-ab" data-act="open" title="Open conversation"><span class="mi">open_in_full</span></button>`
   +`</span>`; }
 // Attach rail handlers inside a container; rows carry the issue key on data-k or data-issue.
@@ -1366,8 +1379,33 @@ function wireRail(root, rowSel){
   root.querySelectorAll('.su-ab').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation();
     const row=b.closest(rowSel), key=row.dataset.k||row.dataset.issue, act=b.dataset.act;
     if(!key)return;
-    if(act==='open')openTreeIssue(key); else if(act==='claim')rowClaim(key); else if(act==='move')rowMove(key,b); else if(act==='reply')rowReply(key,row); }));
+    if(act==='open')openTreeIssue(key); else if(act==='claim')rowClaim(key); else if(act==='move')rowMove(key,b);
+    else if(act==='reply')rowReply(key,row); else if(act==='react')openReactPicker(key,b); else if(act==='follow')rowFollow(key); }));
+  wireRx(root);
 }
+// weavN-native social layer (reactions reuse the existing /react; follow is new).
+let REACTIONS={}, FOLLOWS=new Set();
+async function loadSocial(){ try{const [a,b]=await Promise.all([api('/reactions'),api('/follows')]); if(a.ok)REACTIONS=await a.json(); if(b.ok)FOLLOWS=new Set(await b.json());}catch(e){} }
+function rxChips(key){ const rs=REACTIONS[key]||[]; if(!rs.length)return ''; return `<span class="rxline" data-issue="${esc(key)}">`
+  +rs.map(x=>`<button type="button" class="rchip${x.mine?' mine':''}" data-code="${esc(x.shortcode)}" data-on="${x.mine?1:0}">${esc(x.shortcode)} ${x.count}</button>`).join('')+`</span>`; }
+function wireRx(root){ root.querySelectorAll('.rxline .rchip').forEach(b=>b.addEventListener('click',async e=>{ e.stopPropagation();
+  const issue=b.closest('.rxline').dataset.issue, on=b.dataset.on==='1';
+  await api('/react',{method:'POST',body:JSON.stringify({issue,shortcode:b.dataset.code,on:!on})}); await loadSocial(); rerenderActive(); })); }
+function openReactPicker(key, btn){ closeRowPops();
+  const pal=document.createElement('div'); pal.className='rowmenu rxpick';
+  pal.innerHTML=EMOJI.map(e=>`<button type="button" data-e="${e}">${e}</button>`).join('');
+  document.body.appendChild(pal); const b=btn.getBoundingClientRect();
+  pal.style.left=Math.max(8,Math.min(b.left-80,window.innerWidth-230))+'px'; pal.style.top=(Math.min(b.bottom+4,window.innerHeight-10))+'px';
+  pal.querySelectorAll('button').forEach(mb=>mb.onclick=async()=>{ pal.remove();
+    await api('/react',{method:'POST',body:JSON.stringify({issue:key,shortcode:mb.dataset.e,on:true})}); await loadSocial(); rerenderActive(); });
+  setTimeout(()=>document.addEventListener('click',function off(e){ if(!pal.contains(e.target)){pal.remove();document.removeEventListener('click',off);} }),0);
+}
+async function rowFollow(key){ const r=await api('/follow',{method:'POST',body:JSON.stringify({issue:key})});
+  if(!r.ok){ alert('Follow failed: '+await r.text()); return; }
+  const j=await r.json(); if(j.on)FOLLOWS.add(key); else FOLLOWS.delete(key);
+  wbToast(j.on?('Following '+key+' — it’ll show in For-You'):('Unfollowed '+key), null); rerenderActive();
+}
+function rerenderActive(){ if(VIEW==='stream')renderStreamFeed(); else if(VIEW==='standup'&&STANDUP_DATA)renderStandup(STANDUP_DATA); else if(VIEW==='threads')loadThreadsFeed(); }
 // Reload whichever feed is in view after a write-back, plus any open issue pane.
 function afterRowAction(){
   if(VIEW==='standup')loadStandup(); else if(VIEW==='stream')loadStream();
@@ -1502,6 +1540,7 @@ function streamInvolvesMe(it){
   if((it.author||'').toLowerCase()===me) return true;              // I wrote it
   if((it.snippet||'').toLowerCase().includes('@'+me.split(' ')[0])) return true; // mentions me
   if(STREAM_MINE.has(it.issue_key)) return true;                   // I'm on this issue
+  if(FOLLOWS.has(it.issue_key)) return true;                       // I follow this issue
   return false;
 }
 let STREAM_MINE=new Set();
@@ -1509,6 +1548,7 @@ function fmtStreamKind(k){ return k==='post'?'POST':(k==='issue'?'ISSUE':(k==='c
 async function loadStream(){
   const el=$('#streamfeed'); if(!STREAM.length) el.innerHTML='<div class="feedempty"><span class="spin"></span>Loading the stream…</div>';
   try{const r=await api('/stream'); if(r.ok)STREAM=await r.json();}catch(e){}
+  await Promise.all([loadAvatars(),loadSocial()]);
   // boards present → the project facet; issues I've touched → "for you" membership
   const me=(MENAME||'').toLowerCase();
   STREAM_MINE=new Set(STREAM.filter(it=>(it.author||'').toLowerCase()===me).map(it=>it.issue_key));
@@ -1621,11 +1661,12 @@ function renderStreamFeed(){
   el.innerHTML=a.map(it=>`<div class="fitem" data-issue="${esc(it.issue_key)}" data-ch="${esc(it.channel)}" data-st="${esc(it.status||'')}">
       ${avatarEl(it.author,'fav')}
       <div class="fmain">
-        <div class="ftop"><span class="fa">${esc(it.author)}</span><span class="fkindchip ${esc(it.kind)}">${fmtStreamKind(it.kind)}</span><span class="fch">#${esc(it.channel)}</span>${it.status?`<span class="sdot ${statusClass(it.status)}" style="cursor:default"><span class="dot"></span>${esc(it.status)}</span>`:''}<span class="ftime">${esc(fmtTime(it.ts))}</span>${it.issue_key?actionRail():''}</div>
+        <div class="ftop"><span class="fa">${esc(it.author)}</span><span class="fkindchip ${esc(it.kind)}">${fmtStreamKind(it.kind)}</span><span class="fch">#${esc(it.channel)}</span>${it.status?`<span class="sdot ${statusClass(it.status)}" style="cursor:default"><span class="dot"></span>${esc(it.status)}</span>`:''}<span class="ftime">${esc(fmtTime(it.ts))}</span>${it.issue_key?actionRail(it.issue_key):''}</div>
         <div class="fbody">${esc(it.snippet)}</div>
+        ${it.issue_key?rxChips(it.issue_key):''}
       </div>
     </div>`).join('');
-  el.querySelectorAll('.fitem').forEach(f=>f.addEventListener('click',e=>{ if(e.target.closest('.su-act')||e.target.closest('.rowreply'))return; openTreeIssue(f.dataset.issue); }));
+  el.querySelectorAll('.fitem').forEach(f=>f.addEventListener('click',e=>{ if(e.target.closest('.su-act')||e.target.closest('.rowreply')||e.target.closest('.rxline'))return; openTreeIssue(f.dataset.issue); }));
   wireRail(el,'.fitem');
   el.scrollTop=el.scrollHeight; // newest is at the bottom — land there
 }
@@ -1669,17 +1710,19 @@ function fmtKind(k){ return k==='mention'?'mentioned you':(k==='keyword'?'matche
 async function loadThreadsFeed(){
   const el=$('#threadsfeed'); el.innerHTML='<div class="feedempty"><span class="spin"></span>Loading threads…</div>';
   let items=[]; try{const r=await api('/threads'); if(r.ok)items=await r.json();}catch(e){}
+  await Promise.all([loadAvatars(),loadSocial()]);
   if(!items.length){el.innerHTML='<div class="feedempty">No threaded conversations yet. Reply to a message to start one.</div>';return;}
   el.innerHTML=items.map(t=>`<div class="fitem" data-ch="${esc(t.channel)}" data-issue="${esc(t.issue_key)}" data-st="${esc(t.status||'')}">
       ${avatarEl(t.root_author,'fav')}
       <div class="fmain">
-        <div class="ftop"><span class="fch">#${esc(t.channel)}</span><span class="fa">${esc(t.root_author)}</span><span class="ftime">${esc(fmtTime(t.ts))}</span>${t.issue_key?actionRail():''}</div>
+        <div class="ftop"><span class="fch">#${esc(t.channel)}</span><span class="fa">${esc(t.root_author)}</span><span class="ftime">${esc(fmtTime(t.ts))}</span>${t.issue_key?actionRail(t.issue_key):''}</div>
         <div class="fbody">${esc(t.snippet)}</div>
         <div class="flast"><b>${esc(t.last_author)}:</b> ${esc(t.last_snippet)}</div>
         <div class="frep"><span class="mi">forum</span> ${t.replies} repl${t.replies===1?'y':'ies'}</div>
+        ${t.issue_key?rxChips(t.issue_key):''}
       </div>
     </div>`).join('');
-  el.querySelectorAll('.fitem').forEach(it=>it.addEventListener('click',e=>{ if(e.target.closest('.su-act')||e.target.closest('.rowreply'))return; jumpTo(it.dataset.ch,it.dataset.issue); }));
+  el.querySelectorAll('.fitem').forEach(it=>it.addEventListener('click',e=>{ if(e.target.closest('.su-act')||e.target.closest('.rowreply')||e.target.closest('.rxline'))return; jumpTo(it.dataset.ch,it.dataset.issue); }));
   wireRail(el,'.fitem');
 }
 async function loadActivityFeed(){

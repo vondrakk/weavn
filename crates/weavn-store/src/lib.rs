@@ -115,6 +115,39 @@ pub async fn jira_user_map(pool: &PgPool, workspace: &str) -> sqlx::Result<Vec<(
     .await
 }
 
+/// Every reaction in a workspace as (issue_key, shortcode, account) — the caller
+/// aggregates into counts and "mine". Reuses the `reaction` table from 0006.
+pub async fn reactions_workspace(pool: &PgPool, workspace: &str) -> sqlx::Result<Vec<(String, String, String)>> {
+    sqlx::query_as::<_, (String, String, String)>(
+        "select issue_key, shortcode, account from reaction where workspace=$1",
+    )
+    .bind(workspace)
+    .fetch_all(pool)
+    .await
+}
+
+/// Toggle whether a person follows an issue. Returns true if now following.
+pub async fn follow_toggle(pool: &PgPool, workspace: &str, user: &str, issue: &str) -> sqlx::Result<bool> {
+    let deleted = sqlx::query("delete from issue_follow where workspace=$1 and user_id=$2 and issue_key=$3")
+        .bind(workspace).bind(user).bind(issue)
+        .execute(pool).await?;
+    if deleted.rows_affected() > 0 {
+        return Ok(false);
+    }
+    sqlx::query("insert into issue_follow (workspace, user_id, issue_key) values ($1,$2,$3) on conflict do nothing")
+        .bind(workspace).bind(user).bind(issue)
+        .execute(pool).await?;
+    Ok(true)
+}
+
+/// Issue keys a person follows.
+pub async fn follows_for(pool: &PgPool, workspace: &str, user: &str) -> sqlx::Result<Vec<String>> {
+    sqlx::query_scalar::<_, String>("select issue_key from issue_follow where workspace=$1 and user_id=$2")
+        .bind(workspace).bind(user)
+        .fetch_all(pool)
+        .await
+}
+
 /// Per-user preference value (workspace + user + key). `None` if unset.
 pub async fn user_pref_get(pool: &PgPool, workspace: &str, user: &str, key: &str) -> sqlx::Result<Option<String>> {
     sqlx::query_scalar::<_, String>("select value from user_pref where workspace = $1 and user_id = $2 and key = $3")
